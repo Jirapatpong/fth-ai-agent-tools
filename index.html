@@ -23,9 +23,10 @@
             font-family: 'Inter', sans-serif;
             background-color: #111827; /* bg-gray-900 */
         }
+        /* --- MODIFICATION: Smaller text size --- */
         textarea, pre code {
             font-family: 'Fira Code', monospace !important;
-            font-size: 14px !important;
+            font-size: 11px !important; /* Reduced from 14px */
             line-height: 1.6 !important;
         }
         #output-container {
@@ -36,10 +37,10 @@
             overflow: auto;
         }
         
-        /* --- MODIFICATION: Shorter log panes --- */
+        /* --- MODIFICATION: Taller log panes --- */
         textarea, #output-container {
-            height: 35vh; /* Reduced height by 50% */
-            min-height: 250px;
+            height: 45vh; /* Increased from 35vh */
+            min-height: 300px;
         }
         textarea {
             resize: none;
@@ -495,7 +496,6 @@
                 options: chartOptions
             });
 
-            // --- FIX 1: Sort Tender Types Alphabetically ---
             const sortedTenderTypes = Object.entries(data.tenderTypes).sort((a, b) => a[0].localeCompare(b[0]));
             charts.tender = new Chart(document.getElementById('tender-type-chart'), {
                 type: 'pie',
@@ -521,7 +521,6 @@
                         backgroundColor: '#98c379'
                     }]
                 },
-                // --- FIX 2: Removed indexAxis to make it a vertical bar chart ---
                 options: chartOptions
             });
             
@@ -536,7 +535,6 @@
                         backgroundColor: '#c678dd'
                     }]
                 },
-                // --- FIX 3: Removed indexAxis to make it a vertical bar chart ---
                 options: chartOptions
             });
         }
