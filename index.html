@@ -43,18 +43,18 @@
         }
 
         /* Custom scrollbar for dark theme */
-        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar {
+        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar, #gemini-output::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
-        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track {
+        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track, #gemini-output::-webkit-scrollbar-track {
             background: #1f2937;
         }
-        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb {
+        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb, #gemini-output::-webkit-scrollbar-thumb {
             background: #4b5563;
             border-radius: 4px;
         }
-        textarea::-webkit-scrollbar-thumb:hover, #output-container::-webkit-scrollbar-thumb:hover {
+        textarea::-webkit-scrollbar-thumb:hover, #output-container::-webkit-scrollbar-thumb:hover, #gemini-output::-webkit-scrollbar-thumb:hover {
             background: #6b7280;
         }
         .spinner {
@@ -172,6 +172,26 @@
                 </div>
             </div>
         </div>
+
+        <!-- Gemini Analysis Section -->
+        <div class="mt-8">
+            <div class="flex flex-col items-center mb-4 gap-4">
+                <!-- NEW: API Key Input -->
+                <div>
+                    <label for="api-key-input" class="block mb-2 text-sm font-medium text-gray-300">Your Gemini API Key</label>
+                    <input type="password" id="api-key-input" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your API key here...">
+                </div>
+                 <button id="gemini-analyze-btn" class="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/><path d="M12 12v6"/><path d="M12 6V2"/></svg>
+                    Analyze with Gemini
+                </button>
+            </div>
+            <h2 class="text-xl font-bold text-white mb-2 text-center">Gemini Analysis</h2>
+            <div id="gemini-output" class="p-4 bg-gray-800 rounded-lg text-gray-300 min-h-[150px] max-h-96 overflow-y-auto border border-gray-600">
+                Analysis will appear here...
+            </div>
+        </div>
+
     </div>
 
     <!-- Prettier library for formatting JSON -->
@@ -189,6 +209,9 @@
         const spinnerContainer = document.getElementById('spinner-container');
         const searchInput = document.getElementById('search-input');
         const findNextBtn = document.getElementById('find-next-btn');
+        const geminiAnalyzeBtn = document.getElementById('gemini-analyze-btn');
+        const geminiOutput = document.getElementById('gemini-output');
+        const apiKeyInput = document.getElementById('api-key-input');
         
         let formattedPlainText = '';
         let originalFormattedHtml = '';
@@ -243,14 +266,12 @@
             outputCode.innerHTML = '';
             formattedPlainText = '';
             
-            // Use a timeout to allow the spinner to render before starting the heavy work
             setTimeout(() => {
                 const lines = sourceCode.replace(/\r\n/g, '\n').split('\n');
                 let finalHtml = '';
                 let finalPlainText = '';
                 const logRegex = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})\s+(\[\d+\])\s+(INFO|WARN|ERROR|DEBUG)\s+([\w\s.()\[\]-]+?)\s+[–-]\s+(.*)$/;
 
-                // Build the entire formatted string in memory
                 lines.forEach(line => {
                     const match = line.match(logRegex);
                     if (match) {
@@ -286,7 +307,6 @@
                     }
                 });
                 
-                // --- FIX 1: Update the DOM only once after all processing is done ---
                 outputCode.innerHTML = finalHtml;
                 originalFormattedHtml = finalHtml;
                 formattedPlainText = finalPlainText;
@@ -386,6 +406,65 @@
         });
 
         findNextBtn.addEventListener('click', findNext);
+
+        // --- Gemini Analysis Logic ---
+        geminiAnalyzeBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value;
+            if (!apiKey.trim()) {
+                showMessage('Please enter your Gemini API key to use this feature.', 'error');
+                return;
+            }
+
+            if (!formattedPlainText.trim()) {
+                showMessage('Please format a log before analyzing.', 'error');
+                return;
+            }
+
+            geminiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">Gemini is thinking...</span></div>';
+            geminiAnalyzeBtn.disabled = true;
+
+            const prompt = `
+                As an expert log analyst, provide a brief but insightful summary of the key events in the following log file. 
+                Focus on the number of errors, the main operations being performed (like 'GetItem', 'Login', etc.), and any unusual patterns or important information.
+                Present the summary in clear, easy-to-read bullet points.
+
+                Log Content:
+                ---
+                ${formattedPlainText}
+            `;
+
+            try {
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
+                    const analysisText = result.candidates[0].content.parts[0].text;
+                    geminiOutput.textContent = analysisText;
+                } else {
+                    geminiOutput.textContent = 'Could not get a valid response from the API. The response might be empty or blocked.';
+                }
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                geminiOutput.textContent = `An error occurred while contacting the Gemini API: ${error.message}`;
+            } finally {
+                geminiAnalyzeBtn.disabled = false;
+            }
+        });
 
     </script>
 
