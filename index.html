@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Log Formatter & Highlighter</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter for the main UI, Fira Code for the text areas -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- highlight.js for syntax highlighting JSON within logs -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        textarea, pre code {
+            font-family: 'Fira Code', monospace !important;
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+        }
+        #output-container {
+            background-color: #1f2937; /* bg-gray-800 */
+            border-radius: 0.5rem;
+            border: 1px solid #4b5563; /* border-gray-600 */
+            padding: 1rem;
+            overflow: auto;
+        }
+        
+        /* Fixed height and no resizing */
+        textarea, #output-container {
+            height: 70vh;
+            min-height: 450px;
+        }
+        textarea {
+            resize: none;
+        }
+
+        /* Custom scrollbar for dark theme */
+        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover, #output-container::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* --- Custom Log Highlighting Styles --- */
+        .log-line { 
+            white-space: pre-wrap; 
+            padding: 2px 8px;
+            margin: 0 -8px; /* Counteract padding */
+            border-left: 3px solid transparent; /* Placeholder for alignment */
+        }
+        .log-timestamp { color: #a0a0a0; } /* Muted gray */
+        .log-thread { color: #d19a66; } /* Orange */
+        .log-level-INFO { color: #61afef; font-weight: bold; } /* Blue */
+        .log-level-WARN { color: #e5c07b; font-weight: bold; } /* Yellow */
+        .log-level-ERROR { color: #e06c75; font-weight: bold; } /* Red */
+        .log-source { color: #c678dd; } /* Magenta */
+        .log-message { color: #abb2bf; } /* Default text color */
+        .log-message .hljs {
+            background: #282c34; /* Slightly different background for JSON */
+            padding: 0.5em;
+            border-radius: 4px;
+            margin-top: 0.5em;
+            display: block;
+        }
+        /* --- Highlighting for Request/Response lines --- */
+        .log-line-request {
+            background-color: rgba(97, 175, 239, 0.07); /* Faint blue background */
+            border-left: 3px solid #61afef; /* Blue left border */
+        }
+        .log-line-response {
+            background-color: rgba(152, 195, 121, 0.07); /* Faint green background */
+            border-left: 3px solid #98c379; /* Green left border */
+        }
+        /* --- Search Highlight Styling --- */
+        .search-highlight {
+            background-color: #e5c07b;
+            color: #111827;
+            border-radius: 2px;
+        }
+        .search-highlight-current {
+            background-color: #d19a66;
+            color: #111827;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-full">
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-white">Smart Log Formatter & Highlighter</h1>
+            <p class="mt-2 text-lg text-gray-400">Paste your log file content, and we'll format and color-code it for you.</p>
+        </header>
+
+        <!-- Main Controls -->
+        <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-6">
+            <!-- Browse File Button -->
+            <label class="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M4 18h16M4 6h16"/></svg>
+                Browse File
+                <input type="file" id="file-input" class="hidden" accept=".log,.txt">
+            </label>
+            <!-- Format Button -->
+            <button id="format-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 min-w-[160px] shadow-sm">
+                <span id="format-btn-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2"><path d="M12 3c-1.2 0-2.4.6-3 1.7A3.5 3.5 0 0 0 6.5 8c0 2 .5 3.5 3 5.5L12 16l2.5-2.5c2.5-2 3-3.5 3-5.5A3.5 3.5 0 0 0 15 4.7c-.6-1.1-1.8-1.7-3-1.7Z"/><path d="M22 12c0 5-4.5 9-10 9s-10-4-10-9 4.5-9 10-9"/></svg>
+                    Format Log
+                </span>
+            </button>
+            <!-- Copy Button -->
+            <button id="copy-btn" class="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 border border-gray-500 shadow-sm">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copy Text
+            </button>
+        </div>
+        
+        <!-- Search Controls -->
+        <div class="flex justify-center items-center gap-4 mb-4">
+            <input type="text" id="search-input" class="w-full max-w-xs bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Search in formatted log...">
+            <button id="find-next-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors duration-300 border border-gray-500">Find Next</button>
+        </div>
+
+        <!-- Loading Spinner Container -->
+        <div id="spinner-container" class="hidden justify-center items-center my-4">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Message Box for notifications -->
+        <div id="message-box" class="text-center text-sm font-medium p-2 mb-4 rounded-md opacity-0 transition-opacity duration-300"></div>
+
+        <!-- Editor Panes -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Input Pane -->
+            <div>
+                <label for="input-code" class="block mb-2 text-sm font-medium text-gray-300">Source Log (Input)</label>
+                <textarea id="input-code" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="Paste your log content here or use 'Browse File'..."></textarea>
+            </div>
+            <!-- Output Pane -->
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-300">Formatted Log (Output)</label>
+                <div id="output-container">
+                    <pre><code id="output-code" class="log-output">Formatted log will appear here...</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prettier library for formatting JSON -->
+    <script src="https://unpkg.com/prettier@2.8.8/standalone.js"></script>
+    <script src="https://unpkg.com/prettier@2.8.8/parser-babel.js"></script>
+
+    <script>
+        // DOM Element References
+        const formatBtn = document.getElementById('format-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const inputCode = document.getElementById('input-code');
+        const outputCode = document.getElementById('output-code');
+        const messageBox = document.getElementById('message-box');
+        const fileInput = document.getElementById('file-input');
+        const spinnerContainer = document.getElementById('spinner-container');
+        const searchInput = document.getElementById('search-input');
+        const findNextBtn = document.getElementById('find-next-btn');
+        
+        let formattedPlainText = '';
+        let originalFormattedHtml = '';
+        let searchMatches = [];
+        let currentMatchIndex = -1;
+        let debounceTimer;
+
+        function showMessage(text, type = 'success') {
+            messageBox.textContent = text;
+            messageBox.classList.remove('opacity-0', 'bg-green-900', 'text-green-300', 'bg-red-900', 'text-red-300');
+            if (type === 'success') {
+                messageBox.classList.add('bg-green-900', 'text-green-300');
+            } else {
+                messageBox.classList.add('bg-red-900', 'text-red-300');
+            }
+            messageBox.classList.add('opacity-100');
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+                messageBox.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                 .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+        
+        function decodeTIS620(text) {
+            let result = '';
+            for (let i = 0; i < text.length; i++) {
+                const charCode = text.charCodeAt(i);
+                if (charCode >= 161 && charCode <= 251) {
+                    result += String.fromCharCode(charCode + 3424);
+                } else {
+                    result += text.charAt(i);
+                }
+            }
+            return result;
+        }
+
+        function formatLog() {
+            const sourceCode = inputCode.value;
+            if (!sourceCode.trim()) {
+                showMessage('Input is empty. Please paste some log data.', 'error');
+                return;
+            }
+
+            formatBtn.disabled = true;
+            spinnerContainer.classList.remove('hidden');
+            spinnerContainer.classList.add('flex');
+            outputCode.innerHTML = '';
+            formattedPlainText = '';
+            
+            // Use a timeout to allow the spinner to render before starting the heavy work
+            setTimeout(() => {
+                const lines = sourceCode.replace(/\r\n/g, '\n').split('\n');
+                let finalHtml = '';
+                let finalPlainText = '';
+                const logRegex = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})\s+(\[\d+\])\s+(INFO|WARN|ERROR|DEBUG)\s+([\w\s.()\[\]-]+?)\s+[–-]\s+(.*)$/;
+
+                // Build the entire formatted string in memory
+                lines.forEach(line => {
+                    const match = line.match(logRegex);
+                    if (match) {
+                        const [ , timestamp, thread, level, source, message ] = match;
+                        const correctedMessage = decodeTIS620(message);
+                        let messageHtml = '';
+                        let messagePlainText = correctedMessage;
+                        const jsonMatch = correctedMessage.match(/:\s*(\{.*\}|\[.*\])$/);
+                        if (jsonMatch && jsonMatch[1]) {
+                            try {
+                                const jsonString = jsonMatch[1];
+                                const formattedJson = prettier.format(jsonString, { parser: 'json', plugins: prettierPlugins });
+                                messagePlainText = correctedMessage.replace(jsonString, '\n' + formattedJson);
+                                const highlightedJson = hljs.highlight(formattedJson, { language: 'json' }).value;
+                                messageHtml = escapeHtml(correctedMessage.replace(jsonString, '')) + `<code class="hljs json">${highlightedJson}</code>`;
+                            } catch (e) {
+                                messageHtml = escapeHtml(correctedMessage);
+                            }
+                        } else {
+                            messageHtml = escapeHtml(correctedMessage);
+                        }
+                        
+                        let lineClass = 'log-line';
+                        if (correctedMessage.includes('Request :')) lineClass += ' log-line-request';
+                        else if (correctedMessage.includes('Response :')) lineClass += ' log-line-response';
+
+                        finalHtml += `<div class="${lineClass}"><span class="log-timestamp">${timestamp}</span> <span class="log-thread">${thread}</span> <span class="log-level-${level}">${level}</span> <span class="log-source">${source}</span> <span class="log-message">– ${messageHtml}</span></div>`;
+                        finalPlainText += `${timestamp} ${thread} ${level} ${source} – ${messagePlainText}\n`;
+                    } else {
+                        const correctedLine = decodeTIS620(line);
+                        finalHtml += `<div class="log-line">${escapeHtml(correctedLine)}</div>`;
+                        finalPlainText += correctedLine + '\n';
+                    }
+                });
+                
+                // --- FIX 1: Update the DOM only once after all processing is done ---
+                outputCode.innerHTML = finalHtml;
+                originalFormattedHtml = finalHtml;
+                formattedPlainText = finalPlainText;
+                
+                showMessage('Log formatted successfully!', 'success');
+                formatBtn.disabled = false;
+                spinnerContainer.classList.add('hidden');
+                spinnerContainer.classList.remove('flex');
+
+            }, 50);
+        }
+
+        formatBtn.addEventListener('click', formatLog);
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                inputCode.value = e.target.result;
+                formatLog();
+            };
+            reader.onerror = () => {
+                showMessage('Failed to read file.', 'error');
+            };
+            reader.readAsText(file, 'TIS-620');
+        });
+        
+        copyBtn.addEventListener('click', () => {
+            if (!formattedPlainText.trim() || formattedPlainText === 'Formatted code will appear here...') {
+                showMessage('Nothing to copy.', 'error');
+                return;
+            }
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(formattedPlainText).then(() => {
+                    showMessage('Copied to clipboard!', 'success');
+                }).catch(() => showMessage('Failed to copy text.', 'error'));
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = formattedPlainText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showMessage('Copied to clipboard!', 'success');
+                } catch (err) {
+                    showMessage('Failed to copy text.', 'error');
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+
+        function performSearch() {
+            const searchTerm = searchInput.value;
+            if (!originalFormattedHtml) return;
+            
+            outputCode.innerHTML = originalFormattedHtml;
+            
+            if (!searchTerm) {
+                searchMatches = [];
+                currentMatchIndex = -1;
+                return;
+            }
+
+            const regex = new RegExp(escapeHtml(searchTerm), 'gi');
+            outputCode.innerHTML = originalFormattedHtml.replace(regex, (match) => `<mark class="search-highlight">${match}</mark>`);
+            
+            searchMatches = outputCode.querySelectorAll('.search-highlight');
+            currentMatchIndex = -1;
+            if (searchMatches.length > 0) {
+                findNext();
+            }
+        }
+        
+        function findNext() {
+            if (searchMatches.length === 0) return;
+            
+            if (currentMatchIndex > -1) {
+                searchMatches[currentMatchIndex].classList.remove('search-highlight-current');
+                searchMatches[currentMatchIndex].classList.add('search-highlight');
+            }
+
+            currentMatchIndex = (currentMatchIndex + 1) % searchMatches.length;
+
+            const currentMatch = searchMatches[currentMatchIndex];
+            currentMatch.classList.add('search-highlight-current');
+            currentMatch.classList.remove('search-highlight');
+            currentMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                performSearch();
+            }, 300);
+        });
+
+        findNextBtn.addEventListener('click', findNext);
+
+    </script>
+
+</body>
+</html>
