@@ -111,12 +111,11 @@
         #ai-output {
             white-space: pre-wrap;
         }
-        /* --- FIX: Consistent AI Pane Styling --- */
         #ai-input {
             resize: none;
         }
         #ai-input, #ai-output {
-            height: 320px; /* Increased height by ~10% */
+            height: 320px;
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
         }
@@ -228,7 +227,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label for="ai-input" class="block mb-2 text-sm font-medium text-gray-300">Your Question</label>
-                    <textarea id="ai-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., How many errors occurred? or What was the most expensive item sold?"></textarea>
+                    <textarea id="ai-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., How can I improve sales performance?"></textarea>
                     <button id="ai-ask-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/><path d="M12 12v6"/><path d="M12 6V2"/></svg>
                         Ask AI
@@ -279,6 +278,7 @@
         let charts = {};
         let geminiChatHistory = [];
         let chatgptChatHistory = [];
+        let salesDataForAI = null; // --- NEW: Store dashboard data ---
 
         function showMessage(text, type = 'success') {
             messageBox.textContent = text;
@@ -540,6 +540,7 @@
                  return;
             }
 
+            salesDataForAI = salesData; // --- NEW: Save data for AI ---
             dashboardSection.classList.remove('hidden');
             updateDashboard(salesData);
         });
@@ -640,7 +641,7 @@
                 messageDiv.className = 'chat-message';
                 
                 const roleSpan = document.createElement('span');
-                const role = msg.role === 'model' ? 'assistant' : msg.role; // Normalize Gemini's 'model' role
+                const role = msg.role === 'model' ? 'assistant' : msg.role;
                 roleSpan.className = role === 'user' ? 'chat-message-user' : 'chat-message-assistant';
                 roleSpan.textContent = role === 'user' ? 'You:' : 'Assistant:';
                 
@@ -664,6 +665,23 @@
             }
         });
 
+        // --- NEW: Function to get dashboard summary ---
+        function getDashboardSummary() {
+            if (!salesDataForAI) return "No dashboard has been generated yet.";
+            
+            const topSellers = Object.entries(salesDataForAI.bestSellers).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const topSpenders = Object.entries(salesDataForAI.topSpenders).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+            return `
+- Total Sales: ${salesDataForAI.totalSales.toFixed(2)}
+- Total Transactions: ${salesDataForAI.totalTransactions}
+- Tender Types: ${Object.keys(salesDataForAI.tenderTypes).join(', ')}
+- Top 5 Best Sellers: ${topSellers.map(item => item[0]).join(', ')}
+- Top 5 Spender Types: ${topSpenders.map(item => item[0]).join(', ')}
+            `;
+        }
+
+
         async function askGemini() {
             const apiKey = geminiApiKeyInput.value;
             const userQuestion = aiInput.value;
@@ -686,24 +704,29 @@
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
             
-            // Construct the full prompt only for the first message
             let messagesToSend = [...geminiChatHistory];
             if (geminiChatHistory.length === 1) {
-                 const initialPrompt = `**Role:** You are an expert log analysis assistant.
-                **Task:** Your goal is to provide a clear, accurate, and well-structured answer to the user's question based *only* on the provided log data.
+                 const initialPrompt = `**Role:** You are an expert Sales Data Analyst.
+                **Task:** Your goal is to provide clear, actionable business insights based on the provided log data and its corresponding dashboard summary.
                 **Instructions:**
-                1.  **Analyze the Data:** Carefully read through the entire formatted log file provided below. This is your only source of information.
-                2.  **Understand the Question:** Deconstruct the user's question to understand exactly what information they are seeking.
-                3.  **Formulate the Answer:** Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.
-                4.  **Be Concise:** Answer the question directly and avoid adding information not present in the log.
-                --- FORMATTED LOG DATA START ---
+                1.  **Analyze Both Sources:** You have two sources of information: a detailed log file and a pre-calculated dashboard summary. Use the dashboard for high-level analysis and the log file for specific details.
+                2.  **Synthesize Information:** First, internally structure and understand all the data. Then, formulate a comprehensive answer to the user's question.
+                3.  **Provide Actionable Advice:** If the user asks for suggestions (e.g., "how to improve sales"), provide specific, data-driven recommendations.
+                4.  **Format for Clarity:** Structure your response with headings, bullet points, and bold text. Do not use a single block of text.
+
+                --- DASHBOARD SUMMARY ---
+                ${getDashboardSummary()}
+                --- END DASHBOARD SUMMARY ---
+
+                --- FULL LOG DATA (for detailed lookup) ---
                 ${logContextForAI}
-                --- FORMATTED LOG DATA END ---
+                --- END LOG DATA ---
+
                 **User's Question:** "${userQuestion}"
-                **Your Answer:**`;
+
+                **Your Analysis and Answer:**`;
                 messagesToSend = [{ role: 'user', parts: [{ text: initialPrompt }] }];
             }
-
 
             try {
                 const payload = { contents: messagesToSend };
@@ -724,7 +747,7 @@
                     geminiChatHistory.push({ role: 'model', parts: [{ text: analysisText }] });
                     displayConversation(geminiChatHistory);
                 } else {
-                    geminiChatHistory.pop(); // Remove user's last message if API fails
+                    geminiChatHistory.pop();
                     displayConversation(geminiChatHistory);
                     aiOutput.innerHTML += '<div class="chat-message error">Error: No response from API.</div>';
                 }
@@ -760,12 +783,12 @@
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            const systemPrompt = `You are an expert log analysis assistant. Your task is to provide a clear, accurate, and well-structured answer to the user's question based only on the provided log data. Structure your response for maximum readability using headings, bullet points, and bold text. Do not provide a single, long paragraph.`;
+            const systemPrompt = `You are an expert Sales Data Analyst. Your task is to provide clear, actionable business insights based on the provided log data and its corresponding dashboard summary. Use the dashboard for high-level analysis and the log file for specific details. Structure your response for maximum readability using headings, bullet points, and bold text.`;
             
             const messagesToSend = (chatgptChatHistory.length === 1)
                 ? [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: `Based on the log data below, please answer my question.\n--- LOG DATA START ---\n${logContextForAI}\n--- LOG DATA END ---\nMy Question: "${userQuestion}"` }
+                    { role: "user", content: `Based on the dashboard summary and full log data below, please answer my question.\n--- DASHBOARD SUMMARY ---\n${getDashboardSummary()}\n--- END DASHBOARD SUMMARY ---\n\n--- FULL LOG DATA ---\n${logContextForAI}\n--- END LOG DATA ---\n\nMy Question: "${userQuestion}"` }
                   ]
                 : [ { role: "system", content: systemPrompt }, ...chatgptChatHistory ];
 
