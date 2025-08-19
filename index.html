@@ -616,14 +616,22 @@
 
             // --- FIX: Updated Gemini Prompt ---
             const prompt = `
-                You are an expert log analysis assistant. Your task is to analyze the **formatted log data** provided below to answer the user's question. 
-                The log has been cleaned and structured for readability. Focus your analysis only on the provided text.
+                **Role:** You are an expert log analysis assistant.
+                **Task:** Your goal is to provide a clear, accurate, and well-structured answer to the user's question based *only* on the provided log data.
+
+                **Instructions:**
+                1.  **Analyze the Data:** Carefully read through the entire formatted log file provided below. This is your only source of information.
+                2.  **Understand the Question:** Deconstruct the user's question to understand exactly what information they are seeking.
+                3.  **Formulate the Answer:** Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.
+                4.  **Be Concise:** Answer the question directly and avoid adding information not present in the log.
 
                 --- FORMATTED LOG DATA START ---
                 ${logContextForGemini}
                 --- FORMATTED LOG DATA END ---
 
-                USER'S QUESTION: "${userQuestion}"
+                **User's Question:** "${userQuestion}"
+
+                **Your Answer:**
             `;
 
             try {
