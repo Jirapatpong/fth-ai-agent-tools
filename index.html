@@ -211,7 +211,7 @@
         let originalFormattedHtml = '';
         let searchMatches = [];
         let currentMatchIndex = -1;
-        let debounceTimer;
+        let lastSearchTerm = ''; // --- FIX: Variable to track the last search ---
         let charts = {}; // To hold chart instances
 
         function showMessage(text, type = 'success') {
@@ -392,14 +392,30 @@
             currentMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         
-        searchInput.addEventListener('input', () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
+        // --- FIX: Search logic changed to trigger on button click ---
+        findNextBtn.addEventListener('click', () => {
+            const searchTerm = searchInput.value;
+            if (!searchTerm) {
+                // Clear highlights if search box is empty
+                if (lastSearchTerm !== '') {
+                    outputCode.innerHTML = originalFormattedHtml;
+                    lastSearchTerm = '';
+                }
+                return;
+            }
+
+            if (searchTerm !== lastSearchTerm) {
+                // It's a new search term, so find all matches
                 performSearch();
-            }, 300);
+                lastSearchTerm = searchTerm;
+            } else {
+                // It's the same term, so just cycle to the next match
+                findNext();
+            }
         });
 
-        findNextBtn.addEventListener('click', findNext);
+        // --- FIX: Removed the automatic search on input ---
+        // searchInput.addEventListener('input', () => { ... });
 
         dashboardBtn.addEventListener('click', () => {
             if (!formattedPlainText) {
