@@ -111,12 +111,8 @@
         #gemini-output {
             white-space: pre-wrap;
         }
-        /* --- FIX: Consistent Gemini Pane Styling --- */
-        #gemini-input {
-            resize: none; /* Disable resizing on the question text area */
-        }
         #gemini-input, #gemini-output {
-            height: 320px; /* Increased height and made consistent */
+            height: 320px;
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
         }
@@ -199,27 +195,40 @@
             </div>
         </div>
         
-        <!-- Gemini Analysis Section -->
+        <!-- AI Analysis Section -->
         <div class="mt-8">
-            <h2 class="text-3xl font-bold text-white mb-6 text-center">Ask Gemini About This Log</h2>
+            <h2 class="text-3xl font-bold text-white mb-6 text-center">Ask an AI About This Log</h2>
             <div class="flex flex-col items-center mb-4 gap-4">
+                <!-- AI Provider Selector -->
                 <div>
-                    <label for="api-key-input" class="block mb-2 text-sm font-medium text-gray-300">Your Gemini API Key</label>
-                    <input type="password" id="api-key-input" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your API key here...">
+                    <label for="ai-provider" class="block mb-2 text-sm font-medium text-gray-300">Choose AI Provider</label>
+                    <select id="ai-provider" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                        <option value="gemini" selected>Gemini</option>
+                        <option value="chatgpt">ChatGPT</option>
+                    </select>
+                </div>
+                <!-- API Key Inputs -->
+                <div id="gemini-key-container">
+                    <label for="gemini-api-key" class="block mb-2 text-sm font-medium text-gray-300">Your Gemini API Key</label>
+                    <input type="password" id="gemini-api-key" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your Gemini key...">
+                </div>
+                <div id="chatgpt-key-container" class="hidden">
+                    <label for="chatgpt-api-key" class="block mb-2 text-sm font-medium text-gray-300">Your ChatGPT API Key</label>
+                    <input type="password" id="chatgpt-api-key" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your ChatGPT key (sk-...).">
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label for="gemini-input" class="block mb-2 text-sm font-medium text-gray-300">Your Question</label>
-                    <textarea id="gemini-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., How many errors occurred? or What was the most expensive item sold?"></textarea>
-                    <button id="gemini-ask-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
+                    <label for="ai-input" class="block mb-2 text-sm font-medium text-gray-300">Your Question</label>
+                    <textarea id="ai-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., How many errors occurred? or What was the most expensive item sold?"></textarea>
+                    <button id="ai-ask-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/><path d="M12 12v6"/><path d="M12 6V2"/></svg>
-                        Ask Gemini
+                        Ask AI
                     </button>
                 </div>
                  <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">Gemini's Answer</label>
-                    <div id="gemini-output" class="p-4 rounded-lg text-gray-300 overflow-y-auto border border-gray-600">
+                    <label class="block mb-2 text-sm font-medium text-gray-300">AI's Answer</label>
+                    <div id="ai-output" class="p-4 rounded-lg text-gray-300 overflow-y-auto border border-gray-600">
                         Analysis will appear here...
                     </div>
                 </div>
@@ -245,10 +254,14 @@
         const searchInput = document.getElementById('search-input');
         const findNextBtn = document.getElementById('find-next-btn');
         const dashboardSection = document.getElementById('dashboard-section');
-        const geminiAskBtn = document.getElementById('gemini-ask-btn');
-        const geminiInput = document.getElementById('gemini-input');
-        const geminiOutput = document.getElementById('gemini-output');
-        const apiKeyInput = document.getElementById('api-key-input');
+        const aiAskBtn = document.getElementById('ai-ask-btn');
+        const aiInput = document.getElementById('ai-input');
+        const aiOutput = document.getElementById('ai-output');
+        const aiProviderSelect = document.getElementById('ai-provider');
+        const geminiKeyContainer = document.getElementById('gemini-key-container');
+        const chatgptKeyContainer = document.getElementById('chatgpt-key-container');
+        const geminiApiKeyInput = document.getElementById('gemini-api-key');
+        const chatgptApiKeyInput = document.getElementById('chatgpt-api-key');
         
         let formattedPlainText = '';
         let originalFormattedHtml = '';
@@ -591,17 +604,36 @@
             });
         }
 
-        // --- Gemini Analysis Logic ---
-        geminiAskBtn.addEventListener('click', async () => {
-            const apiKey = apiKeyInput.value;
-            const userQuestion = geminiInput.value;
+        // --- AI Analysis Logic ---
+        aiProviderSelect.addEventListener('change', () => {
+            if (aiProviderSelect.value === 'gemini') {
+                geminiKeyContainer.classList.remove('hidden');
+                chatgptKeyContainer.classList.add('hidden');
+            } else {
+                geminiKeyContainer.classList.add('hidden');
+                chatgptKeyContainer.classList.remove('hidden');
+            }
+        });
+
+        aiAskBtn.addEventListener('click', () => {
+            const provider = aiProviderSelect.value;
+            if (provider === 'gemini') {
+                askGemini();
+            } else {
+                askChatGPT();
+            }
+        });
+
+        async function askGemini() {
+            const apiKey = geminiApiKeyInput.value;
+            const userQuestion = aiInput.value;
 
             if (!apiKey.trim()) {
-                showMessage('Please enter your Gemini API key to use this feature.', 'error');
+                showMessage('Please enter your Gemini API key.', 'error');
                 return;
             }
             if (!userQuestion.trim()) {
-                showMessage('Please enter a question to ask Gemini.', 'error');
+                showMessage('Please enter a question to ask.', 'error');
                 return;
             }
             if (!formattedPlainText.trim()) {
@@ -609,31 +641,27 @@
                 return;
             }
 
-            geminiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">Gemini is thinking...</span></div>';
-            geminiAskBtn.disabled = true;
+            aiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">Gemini is thinking...</span></div>';
+            aiAskBtn.disabled = true;
 
             const MAX_LOG_LENGTH = 25000;
-            let logContextForGemini = formattedPlainText;
-            if (logContextForGemini.length > MAX_LOG_LENGTH) {
-                logContextForGemini = logContextForGemini.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
+            let logContextForAI = formattedPlainText;
+            if (logContextForAI.length > MAX_LOG_LENGTH) {
+                logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
             const prompt = `
                 **Role:** You are an expert log analysis assistant.
                 **Task:** Your goal is to provide a clear, accurate, and well-structured answer to the user's question based *only* on the provided log data.
-
                 **Instructions:**
                 1.  **Analyze the Data:** Carefully read through the entire formatted log file provided below. This is your only source of information.
                 2.  **Understand the Question:** Deconstruct the user's question to understand exactly what information they are seeking.
                 3.  **Formulate the Answer:** Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.
                 4.  **Be Concise:** Answer the question directly and avoid adding information not present in the log.
-
                 --- FORMATTED LOG DATA START ---
-                ${logContextForGemini}
+                ${logContextForAI}
                 --- FORMATTED LOG DATA END ---
-
                 **User's Question:** "${userQuestion}"
-
                 **Your Answer:**
             `;
 
@@ -657,18 +685,90 @@
                 
                 if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
                     const analysisText = result.candidates[0].content.parts[0].text;
-                    geminiOutput.textContent = analysisText;
+                    aiOutput.textContent = analysisText;
                 } else {
-                    geminiOutput.textContent = 'Could not get a valid response from the API. The response might be empty or blocked.';
+                    aiOutput.textContent = 'Could not get a valid response from the API. The response might be empty or blocked.';
                 }
 
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                geminiOutput.textContent = `An error occurred while contacting the Gemini API: ${error.message}`;
+                aiOutput.textContent = `An error occurred while contacting the Gemini API: ${error.message}`;
             } finally {
-                geminiAskBtn.disabled = false;
+                aiAskBtn.disabled = false;
             }
-        });
+        }
+
+        async function askChatGPT() {
+            const apiKey = chatgptApiKeyInput.value;
+            const userQuestion = aiInput.value;
+
+            if (!apiKey.trim()) {
+                showMessage('Please enter your ChatGPT API key.', 'error');
+                return;
+            }
+            if (!userQuestion.trim()) {
+                showMessage('Please enter a question to ask.', 'error');
+                return;
+            }
+            if (!formattedPlainText.trim()) {
+                showMessage('Please format a log before analyzing.', 'error');
+                return;
+            }
+
+            aiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">ChatGPT is thinking...</span></div>';
+            aiAskBtn.disabled = true;
+
+            const MAX_LOG_LENGTH = 12000; // ChatGPT has smaller context windows on some models
+            let logContextForAI = formattedPlainText;
+            if (logContextForAI.length > MAX_LOG_LENGTH) {
+                logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
+            }
+
+            const systemPrompt = `You are an expert log analysis assistant. Your task is to provide a clear, accurate, and well-structured answer to the user's question based only on the provided log data. Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.`;
+            const userPrompt = `
+                Based on the log data below, please answer my question.
+                --- LOG DATA START ---
+                ${logContextForAI}
+                --- LOG DATA END ---
+                My Question: "${userQuestion}"
+            `;
+
+            try {
+                const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + apiKey
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-4o-mini",
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.choices && data.choices.length > 0) {
+                        aiOutput.textContent = data.choices[0].message.content;
+                    } else {
+                        aiOutput.textContent = "No response from API.";
+                    }
+                } else {
+                    const errorMsg = data.error?.message || JSON.stringify(data);
+                    aiOutput.textContent = `API Error (${response.status}): ${errorMsg}`;
+                }
+
+            } catch (err) {
+                console.error("ChatGPT API Error:", err);
+                aiOutput.textContent = `An error occurred while contacting the ChatGPT API: ${err.message}`;
+            } finally {
+                aiAskBtn.disabled = false;
+            }
+        }
 
     </script>
 
