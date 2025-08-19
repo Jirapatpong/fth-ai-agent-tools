@@ -108,6 +108,10 @@
             color: #111827;
             border-radius: 2px;
         }
+        /* --- FIX: Preserve formatting in Gemini's response --- */
+        #gemini-output {
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body class="text-gray-200">
@@ -600,8 +604,7 @@
             geminiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">Gemini is thinking...</span></div>';
             geminiAskBtn.disabled = true;
 
-            // --- FIX: Truncate log data if it's too long ---
-            const MAX_LOG_LENGTH = 25000; // Approx. character limit to be safe
+            const MAX_LOG_LENGTH = 25000;
             let logContextForGemini = formattedPlainText;
             if (logContextForGemini.length > MAX_LOG_LENGTH) {
                 logContextForGemini = logContextForGemini.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
