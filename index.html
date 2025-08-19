@@ -35,14 +35,14 @@
             border: 1px solid #4b5563; /* border-gray-600 */
             padding: 1rem;
             overflow: auto;
-        }
-        
-        /* --- MODIFICATION: Taller log panes --- */
-        textarea, #output-container {
             height: 45vh; /* Increased from 35vh */
             min-height: 300px;
         }
+        
+        /* --- FIX: Taller log panes & disabled resizing --- */
         textarea {
+            height: 45vh; /* Increased from 35vh */
+            min-height: 300px;
             resize: none;
         }
 
@@ -392,11 +392,9 @@
             currentMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         
-        // --- FIX: Search logic changed to trigger on button click ---
         findNextBtn.addEventListener('click', () => {
             const searchTerm = searchInput.value;
             if (!searchTerm) {
-                // Clear highlights if search box is empty
                 if (lastSearchTerm !== '') {
                     outputCode.innerHTML = originalFormattedHtml;
                     lastSearchTerm = '';
@@ -405,17 +403,12 @@
             }
 
             if (searchTerm !== lastSearchTerm) {
-                // It's a new search term, so find all matches
                 performSearch();
                 lastSearchTerm = searchTerm;
             } else {
-                // It's the same term, so just cycle to the next match
                 findNext();
             }
         });
-
-        // --- FIX: Removed the automatic search on input ---
-        // searchInput.addEventListener('input', () => { ... });
 
         dashboardBtn.addEventListener('click', () => {
             if (!formattedPlainText) {
