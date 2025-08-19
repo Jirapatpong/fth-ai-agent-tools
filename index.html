@@ -28,7 +28,7 @@
             font-size: 11px !important; /* Reduced from 14px */
             line-height: 1.6 !important;
         }
-        #output-container, #gemini-output {
+        #output-container, #ai-output {
             background-color: #1f2937; /* bg-gray-800 */
             border-radius: 0.5rem;
             border: 1px solid #4b5563; /* border-gray-600 */
@@ -36,7 +36,7 @@
             overflow: auto;
         }
         
-        textarea {
+        textarea#input-code {
             height: 45vh; /* Increased from 35vh */
             min-height: 300px;
             resize: none;
@@ -47,14 +47,14 @@
         }
 
         /* Custom scrollbar for dark theme */
-        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar, #gemini-output::-webkit-scrollbar {
+        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar, #ai-output::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
-        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track, #gemini-output::-webkit-scrollbar-track {
+        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track, #ai-output::-webkit-scrollbar-track {
             background: #1f2937;
         }
-        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb, #gemini-output::-webkit-scrollbar-thumb {
+        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb, #ai-output::-webkit-scrollbar-thumb {
             background: #4b5563;
             border-radius: 4px;
         }
@@ -108,10 +108,14 @@
             color: #111827;
             border-radius: 2px;
         }
-        #gemini-output {
+        #ai-output {
             white-space: pre-wrap;
         }
-        #gemini-input, #gemini-output {
+        /* --- FIX: Consistent AI Pane Styling --- */
+        #ai-input {
+            resize: none; /* Disable resizing on the question text area */
+        }
+        #ai-input, #ai-output {
             height: 320px;
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
@@ -724,7 +728,7 @@
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            const systemPrompt = `You are an expert log analysis assistant. Your task is to provide a clear, accurate, and well-structured answer to the user's question based only on the provided log data. Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.`;
+            const systemPrompt = `You are an expert log analysis assistant. Your task is to provide a clear, accurate, and well-structured answer to the user's question based only on the provided log data. Structure your response for maximum readability using headings, bullet points, and bold text. Do not provide a single, long paragraph.`;
             const userPrompt = `
                 Based on the log data below, please answer my question.
                 --- LOG DATA START ---
