@@ -111,15 +111,15 @@
         #ai-output {
             white-space: pre-wrap;
         }
+        /* --- FIX: Consistent AI Pane Styling --- */
         #ai-input {
             resize: none;
         }
         #ai-input, #ai-output {
-            height: 320px;
+            height: 320px; /* Increased height by ~10% */
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
         }
-        /* --- NEW: Chat message styling --- */
         .chat-message { margin-bottom: 1rem; }
         .chat-message-user { font-weight: bold; color: #61afef; }
         .chat-message-assistant { font-weight: bold; color: #98c379; }
@@ -277,8 +277,8 @@
         let currentMatchIndex = -1;
         let lastSearchTerm = '';
         let charts = {};
-        let geminiChatHistory = []; // --- NEW: Gemini chat history ---
-        let chatgptChatHistory = []; // --- NEW: ChatGPT chat history ---
+        let geminiChatHistory = [];
+        let chatgptChatHistory = [];
 
         function showMessage(text, type = 'success') {
             messageBox.textContent = text;
@@ -326,7 +326,7 @@
             spinnerContainer.classList.add('flex');
             outputCode.innerHTML = '';
             formattedPlainText = '';
-            clearAIChat(); // --- NEW: Clear chat on new log ---
+            clearAIChat();
             
             setTimeout(() => {
                 const lines = sourceCode.replace(/\r\n/g, '\n').split('\n');
@@ -624,7 +624,7 @@
                 geminiKeyContainer.classList.add('hidden');
                 chatgptKeyContainer.classList.remove('hidden');
             }
-            clearAIChat(); // --- NEW: Clear chat on provider switch ---
+            clearAIChat();
         });
 
         function clearAIChat() {
@@ -640,8 +640,9 @@
                 messageDiv.className = 'chat-message';
                 
                 const roleSpan = document.createElement('span');
-                roleSpan.className = msg.role === 'user' ? 'chat-message-user' : 'chat-message-assistant';
-                roleSpan.textContent = msg.role === 'user' ? 'You:' : 'Assistant:';
+                const role = msg.role === 'model' ? 'assistant' : msg.role; // Normalize Gemini's 'model' role
+                roleSpan.className = role === 'user' ? 'chat-message-user' : 'chat-message-assistant';
+                roleSpan.textContent = role === 'user' ? 'You:' : 'Assistant:';
                 
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'chat-message-content';
@@ -672,25 +673,37 @@
             if (!formattedPlainText.trim()) { showMessage('Please format a log before analyzing.', 'error'); return; }
 
             aiAskBtn.disabled = true;
-
-            // Add user message to history and display
-            geminiChatHistory.push({ role: 'user', parts: [{ text: userQuestion }] });
+            
+            const currentMessage = { role: 'user', parts: [{ text: userQuestion }] };
+            geminiChatHistory.push(currentMessage);
             displayConversation(geminiChatHistory);
-            aiInput.value = ''; // Clear input
+            aiInput.value = '';
             aiOutput.innerHTML += '<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>';
-
 
             const MAX_LOG_LENGTH = 25000;
             let logContextForAI = formattedPlainText;
             if (logContextForAI.length > MAX_LOG_LENGTH) {
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
+            
+            // Construct the full prompt only for the first message
+            let messagesToSend = [...geminiChatHistory];
+            if (geminiChatHistory.length === 1) {
+                 const initialPrompt = `**Role:** You are an expert log analysis assistant.
+                **Task:** Your goal is to provide a clear, accurate, and well-structured answer to the user's question based *only* on the provided log data.
+                **Instructions:**
+                1.  **Analyze the Data:** Carefully read through the entire formatted log file provided below. This is your only source of information.
+                2.  **Understand the Question:** Deconstruct the user's question to understand exactly what information they are seeking.
+                3.  **Formulate the Answer:** Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.
+                4.  **Be Concise:** Answer the question directly and avoid adding information not present in the log.
+                --- FORMATTED LOG DATA START ---
+                ${logContextForAI}
+                --- FORMATTED LOG DATA END ---
+                **User's Question:** "${userQuestion}"
+                **Your Answer:**`;
+                messagesToSend = [{ role: 'user', parts: [{ text: initialPrompt }] }];
+            }
 
-            const initialPrompt = `**Role:** You are an expert log analysis assistant... (rest of prompt)`;
-            // If it's the first message, prepend the system prompt and log data
-            const messagesToSend = (geminiChatHistory.length === 1) 
-                ? [{ role: 'user', parts: [{ text: initialPrompt.replace('USER_QUESTION', userQuestion).replace('LOG_DATA', logContextForAI) }] }]
-                : geminiChatHistory;
 
             try {
                 const payload = { contents: messagesToSend };
@@ -711,11 +724,13 @@
                     geminiChatHistory.push({ role: 'model', parts: [{ text: analysisText }] });
                     displayConversation(geminiChatHistory);
                 } else {
-                    displayConversation(geminiChatHistory); // Show history even if response fails
+                    geminiChatHistory.pop(); // Remove user's last message if API fails
+                    displayConversation(geminiChatHistory);
                     aiOutput.innerHTML += '<div class="chat-message error">Error: No response from API.</div>';
                 }
 
             } catch (error) {
+                geminiChatHistory.pop();
                 console.error("Gemini API Error:", error);
                 displayConversation(geminiChatHistory);
                 aiOutput.innerHTML += `<div class="chat-message error">Error: ${error.message}</div>`;
@@ -734,10 +749,9 @@
             
             aiAskBtn.disabled = true;
             
-            // Add user message to history and display
             chatgptChatHistory.push({ role: 'user', content: userQuestion });
             displayConversation(chatgptChatHistory);
-            aiInput.value = ''; // Clear input
+            aiInput.value = '';
             aiOutput.innerHTML += '<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>';
 
             const MAX_LOG_LENGTH = 12000;
@@ -746,15 +760,14 @@
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            const systemPrompt = `You are an expert log analysis assistant... (rest of prompt)`;
+            const systemPrompt = `You are an expert log analysis assistant. Your task is to provide a clear, accurate, and well-structured answer to the user's question based only on the provided log data. Structure your response for maximum readability using headings, bullet points, and bold text. Do not provide a single, long paragraph.`;
             
-            // If it's the first message, prepend the system prompt and log data
             const messagesToSend = (chatgptChatHistory.length === 1)
                 ? [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: `Based on the log data below, please answer my question.\n--- LOG DATA START ---\n${logContextForAI}\n--- LOG DATA END ---\nMy Question: "${userQuestion}"` }
                   ]
-                : chatgptChatHistory;
+                : [ { role: "system", content: systemPrompt }, ...chatgptChatHistory ];
 
             try {
                 const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -777,16 +790,19 @@
                         chatgptChatHistory.push({ role: 'assistant', content: analysisText });
                         displayConversation(chatgptChatHistory);
                     } else {
+                        chatgptChatHistory.pop();
                         displayConversation(chatgptChatHistory);
                         aiOutput.innerHTML += '<div class="chat-message error">Error: No response from API.</div>';
                     }
                 } else {
+                    chatgptChatHistory.pop();
                     const errorMsg = data.error?.message || JSON.stringify(data);
                     displayConversation(chatgptChatHistory);
                     aiOutput.innerHTML += `<div class="chat-message error">Error: (${response.status}): ${errorMsg}</div>`;
                 }
 
             } catch (err) {
+                chatgptChatHistory.pop();
                 console.error("ChatGPT API Error:", err);
                 displayConversation(chatgptChatHistory);
                 aiOutput.innerHTML += `<div class="chat-message error">Error: ${err.message}</div>`;
