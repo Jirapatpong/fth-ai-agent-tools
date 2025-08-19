@@ -111,8 +111,9 @@
         #gemini-output {
             white-space: pre-wrap;
         }
+        /* --- FIX: Consistent Gemini Pane Styling --- */
         #gemini-input, #gemini-output {
-            height: 260px;
+            height: 290px; /* Increased height by ~10% */
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
         }
@@ -614,7 +615,6 @@
                 logContextForGemini = logContextForGemini.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            // --- FIX: Updated Gemini Prompt ---
             const prompt = `
                 **Role:** You are an expert log analysis assistant.
                 **Task:** Your goal is to provide a clear, accurate, and well-structured answer to the user's question based *only* on the provided log data.
