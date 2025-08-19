@@ -108,9 +108,13 @@
             color: #111827;
             border-radius: 2px;
         }
-        /* --- FIX: Preserve formatting in Gemini's response --- */
         #gemini-output {
             white-space: pre-wrap;
+        }
+        #gemini-input, #gemini-output {
+            height: 260px;
+            font-family: 'Fira Code', monospace !important;
+            font-size: 11px !important;
         }
     </style>
 </head>
@@ -203,7 +207,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label for="gemini-input" class="block mb-2 text-sm font-medium text-gray-300">Your Question</label>
-                    <textarea id="gemini-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" rows="8" placeholder="e.g., How many errors occurred? or What was the most expensive item sold?"></textarea>
+                    <textarea id="gemini-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., How many errors occurred? or What was the most expensive item sold?"></textarea>
                     <button id="gemini-ask-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/><path d="M12 12v6"/><path d="M12 6V2"/></svg>
                         Ask Gemini
@@ -211,7 +215,7 @@
                 </div>
                  <div>
                     <label class="block mb-2 text-sm font-medium text-gray-300">Gemini's Answer</label>
-                    <div id="gemini-output" class="p-4 rounded-lg text-gray-300 min-h-[260px] max-h-96 overflow-y-auto border border-gray-600">
+                    <div id="gemini-output" class="p-4 rounded-lg text-gray-300 overflow-y-auto border border-gray-600">
                         Analysis will appear here...
                     </div>
                 </div>
@@ -610,13 +614,14 @@
                 logContextForGemini = logContextForGemini.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
+            // --- FIX: Updated Gemini Prompt ---
             const prompt = `
-                You are an expert log analysis assistant. Based on the following log data, please answer the user's question.
-                Provide a clear and concise answer.
+                You are an expert log analysis assistant. Your task is to analyze the **formatted log data** provided below to answer the user's question. 
+                The log has been cleaned and structured for readability. Focus your analysis only on the provided text.
 
-                --- LOG DATA START ---
+                --- FORMATTED LOG DATA START ---
                 ${logContextForGemini}
-                --- LOG DATA END ---
+                --- FORMATTED LOG DATA END ---
 
                 USER'S QUESTION: "${userQuestion}"
             `;
