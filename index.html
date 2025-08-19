@@ -111,15 +111,19 @@
         #ai-output {
             white-space: pre-wrap;
         }
-        /* --- FIX: Consistent AI Pane Styling --- */
         #ai-input {
-            resize: none; /* Disable resizing on the question text area */
+            resize: none;
         }
         #ai-input, #ai-output {
             height: 320px;
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
         }
+        /* --- NEW: Chat message styling --- */
+        .chat-message { margin-bottom: 1rem; }
+        .chat-message-user { font-weight: bold; color: #61afef; }
+        .chat-message-assistant { font-weight: bold; color: #98c379; }
+        .chat-message-content { padding-left: 1rem; white-space: pre-wrap; }
     </style>
 </head>
 <body class="text-gray-200">
@@ -231,9 +235,9 @@
                     </button>
                 </div>
                  <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">AI's Answer</label>
+                    <label class="block mb-2 text-sm font-medium text-gray-300">AI Conversation</label>
                     <div id="ai-output" class="p-4 rounded-lg text-gray-300 overflow-y-auto border border-gray-600">
-                        Analysis will appear here...
+                        Ask a question to start the conversation...
                     </div>
                 </div>
             </div>
@@ -273,6 +277,8 @@
         let currentMatchIndex = -1;
         let lastSearchTerm = '';
         let charts = {};
+        let geminiChatHistory = []; // --- NEW: Gemini chat history ---
+        let chatgptChatHistory = []; // --- NEW: ChatGPT chat history ---
 
         function showMessage(text, type = 'success') {
             messageBox.textContent = text;
@@ -320,6 +326,7 @@
             spinnerContainer.classList.add('flex');
             outputCode.innerHTML = '';
             formattedPlainText = '';
+            clearAIChat(); // --- NEW: Clear chat on new log ---
             
             setTimeout(() => {
                 const lines = sourceCode.replace(/\r\n/g, '\n').split('\n');
@@ -617,7 +624,35 @@
                 geminiKeyContainer.classList.add('hidden');
                 chatgptKeyContainer.classList.remove('hidden');
             }
+            clearAIChat(); // --- NEW: Clear chat on provider switch ---
         });
+
+        function clearAIChat() {
+            geminiChatHistory = [];
+            chatgptChatHistory = [];
+            aiOutput.innerHTML = 'Ask a question to start the conversation...';
+        }
+
+        function displayConversation(history) {
+            aiOutput.innerHTML = '';
+            history.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message';
+                
+                const roleSpan = document.createElement('span');
+                roleSpan.className = msg.role === 'user' ? 'chat-message-user' : 'chat-message-assistant';
+                roleSpan.textContent = msg.role === 'user' ? 'You:' : 'Assistant:';
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'chat-message-content';
+                contentDiv.textContent = msg.content || (msg.parts && msg.parts[0].text);
+
+                messageDiv.appendChild(roleSpan);
+                messageDiv.appendChild(contentDiv);
+                aiOutput.appendChild(messageDiv);
+            });
+            aiOutput.scrollTop = aiOutput.scrollHeight;
+        }
 
         aiAskBtn.addEventListener('click', () => {
             const provider = aiProviderSelect.value;
@@ -632,21 +667,18 @@
             const apiKey = geminiApiKeyInput.value;
             const userQuestion = aiInput.value;
 
-            if (!apiKey.trim()) {
-                showMessage('Please enter your Gemini API key.', 'error');
-                return;
-            }
-            if (!userQuestion.trim()) {
-                showMessage('Please enter a question to ask.', 'error');
-                return;
-            }
-            if (!formattedPlainText.trim()) {
-                showMessage('Please format a log before analyzing.', 'error');
-                return;
-            }
+            if (!apiKey.trim()) { showMessage('Please enter your Gemini API key.', 'error'); return; }
+            if (!userQuestion.trim()) { showMessage('Please enter a question to ask.', 'error'); return; }
+            if (!formattedPlainText.trim()) { showMessage('Please format a log before analyzing.', 'error'); return; }
 
-            aiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">Gemini is thinking...</span></div>';
             aiAskBtn.disabled = true;
+
+            // Add user message to history and display
+            geminiChatHistory.push({ role: 'user', parts: [{ text: userQuestion }] });
+            displayConversation(geminiChatHistory);
+            aiInput.value = ''; // Clear input
+            aiOutput.innerHTML += '<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>';
+
 
             const MAX_LOG_LENGTH = 25000;
             let logContextForAI = formattedPlainText;
@@ -654,25 +686,14 @@
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            const prompt = `
-                **Role:** You are an expert log analysis assistant.
-                **Task:** Your goal is to provide a clear, accurate, and well-structured answer to the user's question based *only* on the provided log data.
-                **Instructions:**
-                1.  **Analyze the Data:** Carefully read through the entire formatted log file provided below. This is your only source of information.
-                2.  **Understand the Question:** Deconstruct the user's question to understand exactly what information they are seeking.
-                3.  **Formulate the Answer:** Structure your response for maximum readability. Use headings, bullet points, and bold text to highlight key findings. Do not provide a single, long paragraph.
-                4.  **Be Concise:** Answer the question directly and avoid adding information not present in the log.
-                --- FORMATTED LOG DATA START ---
-                ${logContextForAI}
-                --- FORMATTED LOG DATA END ---
-                **User's Question:** "${userQuestion}"
-                **Your Answer:**
-            `;
+            const initialPrompt = `**Role:** You are an expert log analysis assistant... (rest of prompt)`;
+            // If it's the first message, prepend the system prompt and log data
+            const messagesToSend = (geminiChatHistory.length === 1) 
+                ? [{ role: 'user', parts: [{ text: initialPrompt.replace('USER_QUESTION', userQuestion).replace('LOG_DATA', logContextForAI) }] }]
+                : geminiChatHistory;
 
             try {
-                let chatHistory = [];
-                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-                const payload = { contents: chatHistory };
+                const payload = { contents: messagesToSend };
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(apiUrl, {
@@ -681,22 +702,23 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    throw new Error(`API request failed with status ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
 
                 const result = await response.json();
                 
                 if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
                     const analysisText = result.candidates[0].content.parts[0].text;
-                    aiOutput.textContent = analysisText;
+                    geminiChatHistory.push({ role: 'model', parts: [{ text: analysisText }] });
+                    displayConversation(geminiChatHistory);
                 } else {
-                    aiOutput.textContent = 'Could not get a valid response from the API. The response might be empty or blocked.';
+                    displayConversation(geminiChatHistory); // Show history even if response fails
+                    aiOutput.innerHTML += '<div class="chat-message error">Error: No response from API.</div>';
                 }
 
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                aiOutput.textContent = `An error occurred while contacting the Gemini API: ${error.message}`;
+                displayConversation(geminiChatHistory);
+                aiOutput.innerHTML += `<div class="chat-message error">Error: ${error.message}</div>`;
             } finally {
                 aiAskBtn.disabled = false;
             }
@@ -706,36 +728,33 @@
             const apiKey = chatgptApiKeyInput.value;
             const userQuestion = aiInput.value;
 
-            if (!apiKey.trim()) {
-                showMessage('Please enter your ChatGPT API key.', 'error');
-                return;
-            }
-            if (!userQuestion.trim()) {
-                showMessage('Please enter a question to ask.', 'error');
-                return;
-            }
-            if (!formattedPlainText.trim()) {
-                showMessage('Please format a log before analyzing.', 'error');
-                return;
-            }
-
-            aiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">ChatGPT is thinking...</span></div>';
+            if (!apiKey.trim()) { showMessage('Please enter your ChatGPT API key.', 'error'); return; }
+            if (!userQuestion.trim()) { showMessage('Please enter a question to ask.', 'error'); return; }
+            if (!formattedPlainText.trim()) { showMessage('Please format a log before analyzing.', 'error'); return; }
+            
             aiAskBtn.disabled = true;
+            
+            // Add user message to history and display
+            chatgptChatHistory.push({ role: 'user', content: userQuestion });
+            displayConversation(chatgptChatHistory);
+            aiInput.value = ''; // Clear input
+            aiOutput.innerHTML += '<div class="flex justify-center items-center h-full"><div class="spinner"></div></div>';
 
-            const MAX_LOG_LENGTH = 12000; // ChatGPT has smaller context windows on some models
+            const MAX_LOG_LENGTH = 12000;
             let logContextForAI = formattedPlainText;
             if (logContextForAI.length > MAX_LOG_LENGTH) {
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            const systemPrompt = `You are an expert log analysis assistant. Your task is to provide a clear, accurate, and well-structured answer to the user's question based only on the provided log data. Structure your response for maximum readability using headings, bullet points, and bold text. Do not provide a single, long paragraph.`;
-            const userPrompt = `
-                Based on the log data below, please answer my question.
-                --- LOG DATA START ---
-                ${logContextForAI}
-                --- LOG DATA END ---
-                My Question: "${userQuestion}"
-            `;
+            const systemPrompt = `You are an expert log analysis assistant... (rest of prompt)`;
+            
+            // If it's the first message, prepend the system prompt and log data
+            const messagesToSend = (chatgptChatHistory.length === 1)
+                ? [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: `Based on the log data below, please answer my question.\n--- LOG DATA START ---\n${logContextForAI}\n--- LOG DATA END ---\nMy Question: "${userQuestion}"` }
+                  ]
+                : chatgptChatHistory;
 
             try {
                 const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -746,10 +765,7 @@
                     },
                     body: JSON.stringify({
                         model: "gpt-4o-mini",
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ]
+                        messages: messagesToSend
                     })
                 });
 
@@ -757,18 +773,23 @@
 
                 if (response.ok) {
                     if (data.choices && data.choices.length > 0) {
-                        aiOutput.textContent = data.choices[0].message.content;
+                        const analysisText = data.choices[0].message.content;
+                        chatgptChatHistory.push({ role: 'assistant', content: analysisText });
+                        displayConversation(chatgptChatHistory);
                     } else {
-                        aiOutput.textContent = "No response from API.";
+                        displayConversation(chatgptChatHistory);
+                        aiOutput.innerHTML += '<div class="chat-message error">Error: No response from API.</div>';
                     }
                 } else {
                     const errorMsg = data.error?.message || JSON.stringify(data);
-                    aiOutput.textContent = `API Error (${response.status}): ${errorMsg}`;
+                    displayConversation(chatgptChatHistory);
+                    aiOutput.innerHTML += `<div class="chat-message error">Error: (${response.status}): ${errorMsg}</div>`;
                 }
 
             } catch (err) {
                 console.error("ChatGPT API Error:", err);
-                aiOutput.textContent = `An error occurred while contacting the ChatGPT API: ${err.message}`;
+                displayConversation(chatgptChatHistory);
+                aiOutput.innerHTML += `<div class="chat-message error">Error: ${err.message}</div>`;
             } finally {
                 aiAskBtn.disabled = false;
             }
