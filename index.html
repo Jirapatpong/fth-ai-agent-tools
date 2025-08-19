@@ -112,8 +112,11 @@
             white-space: pre-wrap;
         }
         /* --- FIX: Consistent Gemini Pane Styling --- */
+        #gemini-input {
+            resize: none; /* Disable resizing on the question text area */
+        }
         #gemini-input, #gemini-output {
-            height: 290px; /* Increased height by ~10% */
+            height: 320px; /* Increased height and made consistent */
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important;
         }
