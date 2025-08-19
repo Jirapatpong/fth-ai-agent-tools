@@ -23,38 +23,38 @@
             font-family: 'Inter', sans-serif;
             background-color: #111827; /* bg-gray-900 */
         }
-        /* --- MODIFICATION: Smaller text size --- */
         textarea, pre code {
             font-family: 'Fira Code', monospace !important;
             font-size: 11px !important; /* Reduced from 14px */
             line-height: 1.6 !important;
         }
-        #output-container {
+        #output-container, #gemini-output {
             background-color: #1f2937; /* bg-gray-800 */
             border-radius: 0.5rem;
             border: 1px solid #4b5563; /* border-gray-600 */
             padding: 1rem;
             overflow: auto;
-            height: 45vh; /* Increased from 35vh */
-            min-height: 300px;
         }
         
-        /* --- FIX: Taller log panes & disabled resizing --- */
         textarea {
             height: 45vh; /* Increased from 35vh */
             min-height: 300px;
             resize: none;
         }
+        #output-container {
+            height: 45vh;
+            min-height: 300px;
+        }
 
         /* Custom scrollbar for dark theme */
-        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar {
+        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar, #gemini-output::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
-        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track {
+        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track, #gemini-output::-webkit-scrollbar-track {
             background: #1f2937;
         }
-        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb {
+        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb, #gemini-output::-webkit-scrollbar-thumb {
             background: #4b5563;
             border-radius: 4px;
         }
@@ -186,6 +186,33 @@
                 <div class="bg-gray-800 p-6 rounded-lg"><canvas id="top-spender-chart"></canvas></div>
             </div>
         </div>
+        
+        <!-- Gemini Analysis Section -->
+        <div class="mt-8">
+            <h2 class="text-3xl font-bold text-white mb-6 text-center">Ask Gemini About This Log</h2>
+            <div class="flex flex-col items-center mb-4 gap-4">
+                <div>
+                    <label for="api-key-input" class="block mb-2 text-sm font-medium text-gray-300">Your Gemini API Key</label>
+                    <input type="password" id="api-key-input" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your API key here...">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="gemini-input" class="block mb-2 text-sm font-medium text-gray-300">Your Question</label>
+                    <textarea id="gemini-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" rows="8" placeholder="e.g., How many errors occurred? or What was the most expensive item sold?"></textarea>
+                    <button id="gemini-ask-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/><path d="M12 12v6"/><path d="M12 6V2"/></svg>
+                        Ask Gemini
+                    </button>
+                </div>
+                 <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-300">Gemini's Answer</label>
+                    <div id="gemini-output" class="p-4 rounded-lg text-gray-300 min-h-[260px] max-h-96 overflow-y-auto border border-gray-600">
+                        Analysis will appear here...
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
 
@@ -206,13 +233,17 @@
         const searchInput = document.getElementById('search-input');
         const findNextBtn = document.getElementById('find-next-btn');
         const dashboardSection = document.getElementById('dashboard-section');
+        const geminiAskBtn = document.getElementById('gemini-ask-btn');
+        const geminiInput = document.getElementById('gemini-input');
+        const geminiOutput = document.getElementById('gemini-output');
+        const apiKeyInput = document.getElementById('api-key-input');
         
         let formattedPlainText = '';
         let originalFormattedHtml = '';
         let searchMatches = [];
         let currentMatchIndex = -1;
-        let lastSearchTerm = ''; // --- FIX: Variable to track the last search ---
-        let charts = {}; // To hold chart instances
+        let lastSearchTerm = '';
+        let charts = {};
 
         function showMessage(text, type = 'success') {
             messageBox.textContent = text;
@@ -547,6 +578,72 @@
                 options: chartOptions
             });
         }
+
+        // --- Gemini Analysis Logic ---
+        geminiAskBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value;
+            const userQuestion = geminiInput.value;
+
+            if (!apiKey.trim()) {
+                showMessage('Please enter your Gemini API key to use this feature.', 'error');
+                return;
+            }
+            if (!userQuestion.trim()) {
+                showMessage('Please enter a question to ask Gemini.', 'error');
+                return;
+            }
+            if (!formattedPlainText.trim()) {
+                showMessage('Please format a log before analyzing.', 'error');
+                return;
+            }
+
+            geminiOutput.innerHTML = '<div class="flex justify-center items-center h-full"><div class="spinner"></div><span class="ml-4">Gemini is thinking...</span></div>';
+            geminiAskBtn.disabled = true;
+
+            const prompt = `
+                You are an expert log analysis assistant. Based on the following log data, please answer the user's question.
+                Provide a clear and concise answer.
+
+                --- LOG DATA START ---
+                ${formattedPlainText}
+                --- LOG DATA END ---
+
+                USER'S QUESTION: "${userQuestion}"
+            `;
+
+            try {
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
+                    const analysisText = result.candidates[0].content.parts[0].text;
+                    geminiOutput.textContent = analysisText;
+                } else {
+                    geminiOutput.textContent = 'Could not get a valid response from the API. The response might be empty or blocked.';
+                }
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                geminiOutput.textContent = `An error occurred while contacting the Gemini API: ${error.message}`;
+            } finally {
+                geminiAskBtn.disabled = false;
+            }
+        });
+
     </script>
 
 </body>
