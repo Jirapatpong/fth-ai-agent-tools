@@ -278,7 +278,7 @@
         let charts = {};
         let geminiChatHistory = [];
         let chatgptChatHistory = [];
-        let salesDataForAI = null; // --- NEW: Store dashboard data ---
+        let salesDataForAI = null;
 
         function showMessage(text, type = 'success') {
             messageBox.textContent = text;
@@ -540,7 +540,7 @@
                  return;
             }
 
-            salesDataForAI = salesData; // --- NEW: Save data for AI ---
+            salesDataForAI = salesData;
             dashboardSection.classList.remove('hidden');
             updateDashboard(salesData);
         });
@@ -665,7 +665,6 @@
             }
         });
 
-        // --- NEW: Function to get dashboard summary ---
         function getDashboardSummary() {
             if (!salesDataForAI) return "No dashboard has been generated yet.";
             
