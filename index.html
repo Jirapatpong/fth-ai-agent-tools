@@ -118,19 +118,23 @@
         .chat-message-assistant { font-weight: bold; color: #b5cea8; }
         .chat-message-content { padding-left: 1rem; white-space: pre-wrap; }
         
+        /* --- FIX: Visible AI Selector --- */
         .ai-selector img {
-            width: 32px;
-            height: 32px;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
             border-radius: 50%;
             border: 2px solid transparent;
-            transition: border-color 0.3s;
+            transition: all 0.2s ease-in-out;
+            opacity: 0.5;
         }
         .ai-selector img:hover {
-            border-color: #555;
+            opacity: 0.8;
         }
         .ai-selector img.active {
-            border-color: #4c1d95; /* Indigo */
+            opacity: 1;
+            border-color: #8b5cf6; /* Purple border */
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.7); /* Purple glow */
         }
     </style>
 </head>
@@ -555,7 +559,7 @@
                     datasets: [{
                         label: 'Sales per Hour',
                         data: data.hourly,
-                        backgroundColor: '#61afef'
+                        backgroundColor: '#569cd6'
                     }]
                 },
                 options: chartOptions
@@ -569,7 +573,7 @@
                     datasets: [{
                         label: 'Tender Types',
                         data: sortedTenderTypes.map(item => item[1]),
-                        backgroundColor: ['#61afef', '#c678dd', '#98c379', '#e5c07b', '#e06c75', '#e06c75', '#56b6c2']
+                        backgroundColor: ['#569cd6', '#c586c0', '#b5cea8', '#dcdcaa', '#f44747']
                     }]
                 },
                 options: { plugins: { legend: { labels: { color: '#d1d5db' } } } }
@@ -583,7 +587,7 @@
                     datasets: [{
                         label: 'Best Selling Items',
                         data: top5Items.map(item => item[1]),
-                        backgroundColor: '#98c379'
+                        backgroundColor: '#b5cea8'
                     }]
                 },
                 options: chartOptions
@@ -597,7 +601,7 @@
                     datasets: [{
                         label: 'Top Spenders by Member Type',
                         data: top5Spenders.map(item => item[1]),
-                        backgroundColor: '#c678dd'
+                        backgroundColor: '#c586c0'
                     }]
                 },
                 options: chartOptions
