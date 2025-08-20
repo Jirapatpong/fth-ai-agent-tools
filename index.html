@@ -705,25 +705,21 @@
             
             let messagesToSend = [...geminiChatHistory];
             if (geminiChatHistory.length === 1) {
-                 const initialPrompt = `**Role:** You are an expert Sales Data Analyst.
-                **Task:** Your goal is to provide clear, actionable business insights based on the provided log data and its corresponding dashboard summary.
+                 const initialPrompt = `**Role:** You are a Log Data Extractor and Summarizer.
+                **Task:** Your only function is to analyze the provided log data to answer the user's question.
                 **Instructions:**
-                1.  **Analyze Both Sources:** You have two sources of information: a detailed log file and a pre-calculated dashboard summary. Use the dashboard for high-level analysis and the log file for specific details.
-                2.  **Synthesize Information:** First, internally structure and understand all the data. Then, formulate a comprehensive answer to the user's question.
-                3.  **Provide Actionable Advice:** If the user asks for suggestions (e.g., "how to improve sales"), provide specific, data-driven recommendations.
-                4.  **Format for Clarity:** Structure your response with headings, bullet points, and bold text. Do not use a single block of text.
+                1.  **Analyze the Data:** Carefully read and internally structure the entire formatted log file provided below. This is your only source of information.
+                2.  **Answer Directly:** Provide a direct and factual answer to the user's question based *only* on the data.
+                3.  **No Conversation:** Do not use conversational greetings, apologies, or explain your capabilities. Get straight to the answer.
+                4.  **Format for Clarity:** Structure your answer clearly, using tables or lists if it helps present the data effectively.
 
-                --- DASHBOARD SUMMARY ---
-                ${getDashboardSummary()}
-                --- END DASHBOARD SUMMARY ---
-
-                --- FULL LOG DATA (for detailed lookup) ---
+                --- FORMATTED LOG DATA START ---
                 ${logContextForAI}
-                --- END LOG DATA ---
+                --- FORMATTED LOG DATA END ---
 
                 **User's Question:** "${userQuestion}"
 
-                **Your Analysis and Answer:**`;
+                **Direct Answer:**`;
                 messagesToSend = [{ role: 'user', parts: [{ text: initialPrompt }] }];
             }
 
@@ -782,12 +778,12 @@
                 logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
             }
 
-            const systemPrompt = `You are an expert Sales Data Analyst. Your task is to provide clear, actionable business insights based on the provided log data and its corresponding dashboard summary. Use the dashboard for high-level analysis and the log file for specific details. Structure your response for maximum readability using headings, bullet points, and bold text.`;
+            const systemPrompt = `You are a Log Data Extractor and Summarizer. Your only function is to analyze the provided log data to answer the user's question. Provide only direct, factual answers based on the data. Do not use conversational greetings or explain your capabilities. Structure answers clearly.`;
             
             const messagesToSend = (chatgptChatHistory.length === 1)
                 ? [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: `Based on the dashboard summary and full log data below, please answer my question.\n--- DASHBOARD SUMMARY ---\n${getDashboardSummary()}\n--- END DASHBOARD SUMMARY ---\n\n--- FULL LOG DATA ---\n${logContextForAI}\n--- END LOG DATA ---\n\nMy Question: "${userQuestion}"` }
+                    { role: "user", content: `Based on the log data below, please answer my question.\n--- LOG DATA START ---\n${logContextForAI}\n--- LOG DATA END ---\nMy Question: "${userQuestion}"` }
                   ]
                 : [ { role: "system", content: systemPrompt }, ...chatgptChatHistory ];
 
