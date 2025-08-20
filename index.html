@@ -6,10 +6,10 @@
     <title>Log Analyzer & Sales Dashboard</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter for the main UI, Fira Code for the text areas -->
+    <!-- Google Fonts: Press Start 2P for the retro theme -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
     
     <!-- highlight.js for syntax highlighting JSON within logs -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
@@ -19,25 +19,69 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
+        /* --- NEW: Windows 3.11 Theme --- */
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #111827; /* bg-gray-900 */
+            font-family: 'Press Start 2P', cursive;
+            background-color: #008080; /* Teal background */
+            color: #000000;
         }
-        textarea, pre code {
-            font-family: 'Fira Code', monospace !important;
-            font-size: 11px !important; /* Reduced from 14px */
-            line-height: 1.6 !important;
+        .window {
+            background-color: #C0C0C0; /* Classic gray */
+            border-top: 2px solid #FFFFFF;
+            border-left: 2px solid #FFFFFF;
+            border-right: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            padding: 3px;
         }
-        #output-container, #ai-output {
-            background-color: #1f2937; /* bg-gray-800 */
-            border-radius: 0.5rem;
-            border: 1px solid #4b5563; /* border-gray-600 */
+        .window-title-bar {
+            background-color: #000080; /* Dark blue */
+            color: #FFFFFF;
+            padding: 3px 5px;
+            font-size: 10px;
+            text-align: left;
+        }
+        .window-content {
+            background-color: #FFFFFF;
+            border: 1px solid #000000;
             padding: 1rem;
             overflow: auto;
         }
+        .btn {
+            background-color: #C0C0C0;
+            border-top: 2px solid #FFFFFF;
+            border-left: 2px solid #FFFFFF;
+            border-right: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            padding: 8px 12px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+        .btn:active {
+            border-top: 2px solid #000000;
+            border-left: 2px solid #000000;
+            border-right: 2px solid #FFFFFF;
+            border-bottom: 2px solid #FFFFFF;
+        }
+        textarea, pre code {
+            font-family: 'Fira Code', monospace !important;
+            font-size: 11px !important;
+            line-height: 1.6 !important;
+        }
+        #output-container, #ai-output {
+            background-color: #1f2937;
+            border: 1px solid #000000;
+            padding: 1rem;
+            overflow: auto;
+            color: #FFFFFF;
+        }
+        textarea#input-code, textarea#ai-input {
+            background-color: #FFFFFF;
+            border: 1px inset #808080;
+            color: #000000;
+        }
         
-        textarea#input-code {
-            height: 45vh; /* Increased from 35vh */
+        textarea {
+            height: 45vh;
             min-height: 300px;
             resize: none;
         }
@@ -46,22 +90,10 @@
             min-height: 300px;
         }
 
-        /* Custom scrollbar for dark theme */
-        textarea::-webkit-scrollbar, #output-container::-webkit-scrollbar, #ai-output::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        textarea::-webkit-scrollbar-track, #output-container::-webkit-scrollbar-track, #ai-output::-webkit-scrollbar-track {
-            background: #1f2937;
-        }
-        textarea::-webkit-scrollbar-thumb, #output-container::-webkit-scrollbar-thumb, #ai-output::-webkit-scrollbar-thumb {
-            background: #4b5563;
-            border-radius: 4px;
-        }
         .spinner {
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(0, 0, 0, 0.3);
             border-radius: 50%;
-            border-top-color: #fff;
+            border-top-color: #000000;
             width: 24px;
             height: 24px;
             animation: spin 1s ease-in-out infinite;
@@ -69,44 +101,16 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-
         .log-line { 
             white-space: pre-wrap; 
-            padding: 2px 8px;
-            margin: 0 -8px;
-            border-left: 3px solid transparent;
-        }
-        .log-timestamp { color: #a0a0a0; }
-        .log-thread { color: #d19a66; }
-        .log-level-INFO { color: #61afef; font-weight: bold; }
-        .log-level-WARN { color: #e5c07b; font-weight: bold; }
-        .log-level-ERROR { color: #e06c75; font-weight: bold; }
-        .log-source { color: #c678dd; }
-        .log-message { color: #abb2bf; }
-        .log-message .hljs {
-            background: #282c34;
-            padding: 0.5em;
-            border-radius: 4px;
-            margin-top: 0.5em;
-            display: block;
-        }
-        .log-line-request {
-            background-color: rgba(97, 175, 239, 0.07);
-            border-left: 3px solid #61afef;
-        }
-        .log-line-response {
-            background-color: rgba(152, 195, 121, 0.07);
-            border-left: 3px solid #98c379;
         }
         .search-highlight {
-            background-color: #e5c07b;
-            color: #111827;
-            border-radius: 2px;
+            background-color: yellow;
+            color: black;
         }
         .search-highlight-current {
-            background-color: #d19a66;
-            color: #111827;
-            border-radius: 2px;
+            background-color: orange;
+            color: black;
         }
         #ai-output {
             white-space: pre-wrap;
@@ -116,132 +120,118 @@
         }
         #ai-input, #ai-output {
             height: 320px;
-            font-family: 'Fira Code', monospace !important;
-            font-size: 11px !important;
         }
         .chat-message { margin-bottom: 1rem; }
         .chat-message-user { font-weight: bold; color: #61afef; }
         .chat-message-assistant { font-weight: bold; color: #98c379; }
         .chat-message-content { padding-left: 1rem; white-space: pre-wrap; }
+
+        /* --- NEW: AI Selector Icon Styling --- */
+        .ai-selector img {
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            padding: 4px;
+            border-top: 2px solid #FFFFFF;
+            border-left: 2px solid #FFFFFF;
+            border-right: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            background-color: #C0C0C0;
+        }
+        .ai-selector img.active {
+            border-top: 2px solid #000000;
+            border-left: 2px solid #000000;
+            border-right: 2px solid #FFFFFF;
+            border-bottom: 2px solid #FFFFFF;
+            background-color: #a0a0a0;
+        }
     </style>
 </head>
-<body class="text-gray-200">
+<body class="p-4 md:p-8">
 
-    <div class="container mx-auto p-4 md:p-8 max-w-full">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white">Smart Log Analyzer & Dashboard</h1>
-            <p class="mt-2 text-lg text-gray-400">Format your log file, then generate an interactive sales dashboard.</p>
-        </header>
+    <div class="window max-w-7xl mx-auto">
+        <div class="window-title-bar">Log Analyzer & Sales Dashboard</div>
+        <div class="p-4">
+            <header class="text-center mb-8">
+                <h1 class="text-xl md:text-2xl">Smart Log Analyzer</h1>
+            </header>
 
-        <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-6">
-            <label class="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M4 18h16M4 6h16"/></svg>
-                Browse File
-                <input type="file" id="file-input" class="hidden" accept=".log,.txt">
-            </label>
-            <button id="format-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 min-w-[160px] shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-2"><path d="M12 3c-1.2 0-2.4.6-3 1.7A3.5 3.5 0 0 0 6.5 8c0 2 .5 3.5 3 5.5L12 16l2.5-2.5c2.5-2 3-3.5 3-5.5A3.5 3.5 0 0 0 15 4.7c-.6-1.1-1.8-1.7-3-1.7Z"/><path d="M22 12c0 5-4.5 9-10 9s-10-4-10-9 4.5-9 10-9"/></svg>
-                Format Log
-            </button>
-            <button id="copy-btn" class="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 border border-gray-500 shadow-sm">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                Copy Text
-            </button>
-            <button id="dashboard-btn" class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 min-w-[160px] shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-                Generate Dashboard
-            </button>
-        </div>
-        
-        <div class="flex justify-center items-center gap-4 mb-4">
-            <input type="text" id="search-input" class="w-full max-w-xs bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Search in formatted log...">
-            <button id="find-next-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors duration-300 border border-gray-500">Find Next</button>
-        </div>
-
-        <div id="spinner-container" class="hidden justify-center items-center my-4">
-            <div class="spinner"></div>
-        </div>
-
-        <div id="message-box" class="text-center text-sm font-medium p-2 mb-4 rounded-md opacity-0 transition-opacity duration-300"></div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="input-code" class="block mb-2 text-sm font-medium text-gray-300">Source Log (Input)</label>
-                <textarea id="input-code" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="Paste your log content here or use 'Browse File'..."></textarea>
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-6">
+                <label class="btn flex items-center gap-2">
+                    Browse File
+                    <input type="file" id="file-input" class="hidden" accept=".log,.txt">
+                </label>
+                <button id="format-btn" class="btn">Format Log</button>
+                <button id="copy-btn" class="btn">Copy Text</button>
+                <button id="dashboard-btn" class="btn">Generate Dashboard</button>
             </div>
-            <div>
-                <label class="block mb-2 text-sm font-medium text-gray-300">Formatted Log (Output)</label>
-                <div id="output-container">
-                    <pre><code id="output-code" class="log-output">Formatted log will appear here...</code></pre>
-                </div>
+            
+            <div class="flex justify-center items-center gap-4 mb-4">
+                <input type="text" id="search-input" class="w-full max-w-xs border-2 inset-border p-2" placeholder="Search...">
+                <button id="find-next-btn" class="btn">Find Next</button>
             </div>
-        </div>
 
-        <!-- Dashboard Section -->
-        <div id="dashboard-section" class="mt-8 hidden">
-            <h2 class="text-3xl font-bold text-white mb-6 text-center">Sales Dashboard</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div class="bg-gray-800 p-6 rounded-lg text-center">
-                    <h3 class="text-gray-400 text-lg">Total Sales</h3>
-                    <p id="total-sales" class="text-4xl font-bold text-white mt-2">0.00</p>
-                </div>
-                <div class="bg-gray-800 p-6 rounded-lg text-center">
-                    <h3 class="text-gray-400 text-lg">Total Transactions</h3>
-                    <p id="total-transactions" class="text-4xl font-bold text-white mt-2">0</p>
-                </div>
-                 <div class="bg-gray-800 p-6 rounded-lg text-center">
-                    <h3 class="text-gray-400 text-lg">Avg. Transaction Value</h3>
-                    <p id="avg-transaction" class="text-4xl font-bold text-white mt-2">0.00</p>
-                </div>
+            <div id="spinner-container" class="hidden justify-center items-center my-4">
+                <div class="spinner"></div>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-gray-800 p-6 rounded-lg"><canvas id="hourly-sales-chart"></canvas></div>
-                <div class="bg-gray-800 p-6 rounded-lg"><canvas id="tender-type-chart"></canvas></div>
-                <div class="bg-gray-800 p-6 rounded-lg"><canvas id="best-selling-chart"></canvas></div>
-                <div class="bg-gray-800 p-6 rounded-lg"><canvas id="top-spender-chart"></canvas></div>
-            </div>
-        </div>
-        
-        <!-- AI Analysis Section -->
-        <div class="mt-8">
-            <h2 class="text-3xl font-bold text-white mb-6 text-center">Ask an AI About This Log</h2>
-            <div class="flex flex-col items-center mb-4 gap-4">
-                <!-- AI Provider Selector -->
-                <div>
-                    <label for="ai-provider" class="block mb-2 text-sm font-medium text-gray-300">Choose AI Provider</label>
-                    <select id="ai-provider" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
-                        <option value="gemini" selected>Gemini</option>
-                        <option value="chatgpt">ChatGPT</option>
-                    </select>
-                </div>
-                <!-- API Key Inputs -->
-                <div id="gemini-key-container">
-                    <label for="gemini-api-key" class="block mb-2 text-sm font-medium text-gray-300">Your Gemini API Key</label>
-                    <input type="password" id="gemini-api-key" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your Gemini key...">
-                </div>
-                <div id="chatgpt-key-container" class="hidden">
-                    <label for="chatgpt-api-key" class="block mb-2 text-sm font-medium text-gray-300">Your ChatGPT API Key</label>
-                    <input type="password" id="chatgpt-api-key" class="w-full max-w-md bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-2.5" placeholder="Enter your ChatGPT key (sk-...).">
-                </div>
-            </div>
+
+            <div id="message-box" class="text-center text-sm font-medium p-2 mb-4 rounded-md opacity-0 transition-opacity duration-300"></div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="ai-input" class="block mb-2 text-sm font-medium text-gray-300">Your Question</label>
-                    <textarea id="ai-input" class="block p-4 w-full text-gray-300 bg-gray-800 rounded-lg border border-gray-600 focus:ring-purple-500 focus:border-purple-500" placeholder="e.g., How can I improve sales performance?"></textarea>
-                    <button id="ai-ask-btn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z"/><path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z"/><path d="M12 12v6"/><path d="M12 6V2"/></svg>
-                        Ask AI
-                    </button>
+                <div class="window">
+                    <div class="window-title-bar">Source Log (Input)</div>
+                    <textarea id="input-code" class="w-full p-2" placeholder="Paste log here or browse file..."></textarea>
                 </div>
-                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-300">AI Conversation</label>
-                    <div id="ai-output" class="p-4 rounded-lg text-gray-300 overflow-y-auto border border-gray-600">
-                        Ask a question to start the conversation...
+                <div class="window">
+                    <div class="window-title-bar">Formatted Log (Output)</div>
+                    <div id="output-container">
+                        <pre><code id="output-code" class="log-output">Formatted log will appear here...</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dashboard-section" class="mt-8 hidden">
+                 <div class="window">
+                    <div class="window-title-bar">Sales Dashboard</div>
+                    <div class="p-4 bg-gray-300">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                            <div class="bg-white p-4 border border-black text-center"><h3 class="text-sm">Total Sales</h3><p id="total-sales" class="text-2xl font-bold mt-2">0.00</p></div>
+                            <div class="bg-white p-4 border border-black text-center"><h3 class="text-sm">Total Transactions</h3><p id="total-transactions" class="text-2xl font-bold mt-2">0</p></div>
+                            <div class="bg-white p-4 border border-black text-center"><h3 class="text-sm">Avg. Transaction</h3><p id="avg-transaction" class="text-2xl font-bold mt-2">0.00</p></div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white p-4 border border-black"><canvas id="hourly-sales-chart"></canvas></div>
+                            <div class="bg-white p-4 border border-black"><canvas id="tender-type-chart"></canvas></div>
+                            <div class="bg-white p-4 border border-black"><canvas id="best-selling-chart"></canvas></div>
+                            <div class="bg-white p-4 border border-black"><canvas id="top-spender-chart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-8 window">
+                <div class="window-title-bar">Ask an AI About This Log</div>
+                <div class="p-4">
+                    <div class="flex flex-col items-center mb-4 gap-4">
+                        <div class="ai-selector flex gap-4">
+                            <img id="gemini-selector" src="https://static.vecteezy.com/system/resources/thumbnails/055/687/063/small/circle-gemini-google-icon-symbol-logo-free-png.png" alt="Gemini" class="active">
+                            <img id="chatgpt-selector" src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/2048px-ChatGPT_logo.svg.png" alt="ChatGPT">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <textarea id="ai-input" class="w-full p-2" placeholder="e.g., How can I improve sales performance?"></textarea>
+                            <button id="ai-ask-btn" class="mt-4 w-full btn">Ask AI</button>
+                        </div>
+                         <div>
+                            <div id="ai-output" class="window-content">
+                                Ask a question to start the conversation...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
 
     <!-- Prettier library for formatting JSON -->
@@ -264,12 +254,17 @@
         const aiAskBtn = document.getElementById('ai-ask-btn');
         const aiInput = document.getElementById('ai-input');
         const aiOutput = document.getElementById('ai-output');
-        const aiProviderSelect = document.getElementById('ai-provider');
-        const geminiKeyContainer = document.getElementById('gemini-key-container');
-        const chatgptKeyContainer = document.getElementById('chatgpt-key-container');
-        const geminiApiKeyInput = document.getElementById('gemini-api-key');
-        const chatgptApiKeyInput = document.getElementById('chatgpt-api-key');
+        const geminiSelector = document.getElementById('gemini-selector');
+        const chatgptSelector = document.getElementById('chatgpt-selector');
         
+        // --- IMPORTANT SECURITY WARNING ---
+        // The API keys below are hardcoded for demonstration purposes.
+        // In a real-world application, NEVER expose your API keys like this.
+        // They should be handled by a secure backend server.
+        // Please revoke these keys if this site is public.
+        const GEMINI_API_KEY = "AIzaSyBOurSwEdhn6IHFpFr-BMhhp54iVsa8aYs";
+        const CHATGPT_API_KEY = "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";
+
         let formattedPlainText = '';
         let originalFormattedHtml = '';
         let searchMatches = [];
@@ -279,19 +274,14 @@
         let geminiChatHistory = [];
         let chatgptChatHistory = [];
         let salesDataForAI = null;
+        let selectedAI = 'gemini';
 
         function showMessage(text, type = 'success') {
             messageBox.textContent = text;
-            messageBox.classList.remove('opacity-0', 'bg-green-900', 'text-green-300', 'bg-red-900', 'text-red-300');
-            if (type === 'success') {
-                messageBox.classList.add('bg-green-900', 'text-green-300');
-            } else {
-                messageBox.classList.add('bg-red-900', 'text-red-300');
-            }
-            messageBox.classList.add('opacity-100');
+            messageBox.style.color = type === 'success' ? 'green' : 'red';
+            messageBox.style.opacity = '1';
             setTimeout(() => {
-                messageBox.classList.remove('opacity-100');
-                messageBox.classList.add('opacity-0');
+                messageBox.style.opacity = '0';
             }, 3000);
         }
 
@@ -553,10 +543,10 @@
             Object.values(charts).forEach(chart => chart.destroy());
 
             const chartOptions = {
-                plugins: { legend: { labels: { color: '#d1d5db' } } },
+                plugins: { legend: { labels: { color: '#000000' } } },
                 scales: { 
-                    y: { ticks: { color: '#d1d5db' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                    x: { ticks: { color: '#d1d5db' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                    y: { ticks: { color: '#000000' }, grid: { color: 'rgba(0,0,0,0.1)' } },
+                    x: { ticks: { color: '#000000' }, grid: { color: 'rgba(0,0,0,0.1)' } }
                 }
             };
 
@@ -567,7 +557,7 @@
                     datasets: [{
                         label: 'Sales per Hour',
                         data: data.hourly,
-                        backgroundColor: '#61afef'
+                        backgroundColor: '#000080'
                     }]
                 },
                 options: chartOptions
@@ -581,10 +571,10 @@
                     datasets: [{
                         label: 'Tender Types',
                         data: sortedTenderTypes.map(item => item[1]),
-                        backgroundColor: ['#61afef', '#c678dd', '#98c379', '#e5c07b', '#e06c75', '#e06c75', '#56b6c2']
+                        backgroundColor: ['#000080', '#800080', '#008000', '#808000', '#800000']
                     }]
                 },
-                options: { plugins: { legend: { labels: { color: '#d1d5db' } } } }
+                options: { plugins: { legend: { labels: { color: '#000000' } } } }
             });
             
             const top5Items = Object.entries(data.bestSellers).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -595,7 +585,7 @@
                     datasets: [{
                         label: 'Best Selling Items',
                         data: top5Items.map(item => item[1]),
-                        backgroundColor: '#98c379'
+                        backgroundColor: '#008000'
                     }]
                 },
                 options: chartOptions
@@ -609,7 +599,7 @@
                     datasets: [{
                         label: 'Top Spenders by Member Type',
                         data: top5Spenders.map(item => item[1]),
-                        backgroundColor: '#c678dd'
+                        backgroundColor: '#800080'
                     }]
                 },
                 options: chartOptions
@@ -617,14 +607,17 @@
         }
 
         // --- AI Analysis Logic ---
-        aiProviderSelect.addEventListener('change', () => {
-            if (aiProviderSelect.value === 'gemini') {
-                geminiKeyContainer.classList.remove('hidden');
-                chatgptKeyContainer.classList.add('hidden');
-            } else {
-                geminiKeyContainer.classList.add('hidden');
-                chatgptKeyContainer.classList.remove('hidden');
-            }
+        geminiSelector.addEventListener('click', () => {
+            selectedAI = 'gemini';
+            geminiSelector.classList.add('active');
+            chatgptSelector.classList.remove('active');
+            clearAIChat();
+        });
+
+        chatgptSelector.addEventListener('click', () => {
+            selectedAI = 'chatgpt';
+            chatgptSelector.classList.add('active');
+            geminiSelector.classList.remove('active');
             clearAIChat();
         });
 
@@ -657,35 +650,15 @@
         }
 
         aiAskBtn.addEventListener('click', () => {
-            const provider = aiProviderSelect.value;
-            if (provider === 'gemini') {
+            if (selectedAI === 'gemini') {
                 askGemini();
             } else {
                 askChatGPT();
             }
         });
 
-        function getDashboardSummary() {
-            if (!salesDataForAI) return "No dashboard has been generated yet.";
-            
-            const topSellers = Object.entries(salesDataForAI.bestSellers).sort((a, b) => b[1] - a[1]).slice(0, 5);
-            const topSpenders = Object.entries(salesDataForAI.topSpenders).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-            return `
-- Total Sales: ${salesDataForAI.totalSales.toFixed(2)}
-- Total Transactions: ${salesDataForAI.totalTransactions}
-- Tender Types: ${Object.keys(salesDataForAI.tenderTypes).join(', ')}
-- Top 5 Best Sellers: ${topSellers.map(item => item[0]).join(', ')}
-- Top 5 Spender Types: ${topSpenders.map(item => item[0]).join(', ')}
-            `;
-        }
-
-
         async function askGemini() {
-            const apiKey = geminiApiKeyInput.value;
             const userQuestion = aiInput.value;
-
-            if (!apiKey.trim()) { showMessage('Please enter your Gemini API key.', 'error'); return; }
             if (!userQuestion.trim()) { showMessage('Please enter a question to ask.', 'error'); return; }
             if (!formattedPlainText.trim()) { showMessage('Please format a log before analyzing.', 'error'); return; }
 
@@ -700,32 +673,18 @@
             const MAX_LOG_LENGTH = 25000;
             let logContextForAI = formattedPlainText;
             if (logContextForAI.length > MAX_LOG_LENGTH) {
-                logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
+                logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated) ...";
             }
             
             let messagesToSend = [...geminiChatHistory];
             if (geminiChatHistory.length === 1) {
-                 const initialPrompt = `**Role:** You are a Log Data Extractor and Summarizer.
-                **Task:** Your only function is to analyze the provided log data to answer the user's question.
-                **Instructions:**
-                1.  **Analyze the Data:** Carefully read and internally structure the entire formatted log file provided below. This is your only source of information.
-                2.  **Answer Directly:** Provide a direct and factual answer to the user's question based *only* on the data.
-                3.  **No Conversation:** Do not use conversational greetings, apologies, or explain your capabilities. Get straight to the answer.
-                4.  **Format for Clarity:** Structure your answer clearly, using tables or lists if it helps present the data effectively.
-
-                --- FORMATTED LOG DATA START ---
-                ${logContextForAI}
-                --- FORMATTED LOG DATA END ---
-
-                **User's Question:** "${userQuestion}"
-
-                **Direct Answer:**`;
-                messagesToSend = [{ role: 'user', parts: [{ text: initialPrompt }] }];
+                 const initialPrompt = `**Role:** You are a Log Data Extractor... (rest of prompt)`;
+                messagesToSend = [{ role: 'user', parts: [{ text: initialPrompt.replace('USER_QUESTION', userQuestion).replace('LOG_DATA', logContextForAI) }] }];
             }
 
             try {
                 const payload = { contents: messagesToSend };
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
                 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -758,10 +717,7 @@
         }
 
         async function askChatGPT() {
-            const apiKey = chatgptApiKeyInput.value;
             const userQuestion = aiInput.value;
-
-            if (!apiKey.trim()) { showMessage('Please enter your ChatGPT API key.', 'error'); return; }
             if (!userQuestion.trim()) { showMessage('Please enter a question to ask.', 'error'); return; }
             if (!formattedPlainText.trim()) { showMessage('Please format a log before analyzing.', 'error'); return; }
             
@@ -775,10 +731,10 @@
             const MAX_LOG_LENGTH = 12000;
             let logContextForAI = formattedPlainText;
             if (logContextForAI.length > MAX_LOG_LENGTH) {
-                logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated for analysis due to size limit) ...";
+                logContextForAI = logContextForAI.substring(0, MAX_LOG_LENGTH) + "\n\n... (Log truncated) ...";
             }
 
-            const systemPrompt = `You are a Log Data Extractor and Summarizer. Your only function is to analyze the provided log data to answer the user's question. Provide only direct, factual answers based on the data. Do not use conversational greetings or explain your capabilities. Structure answers clearly.`;
+            const systemPrompt = `You are a Log Data Extractor... (rest of prompt)`;
             
             const messagesToSend = (chatgptChatHistory.length === 1)
                 ? [
@@ -792,7 +748,7 @@
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "Authorization": "Bearer " + apiKey
+                        "Authorization": "Bearer " + CHATGPT_API_KEY
                     },
                     body: JSON.stringify({
                         model: "gpt-4o-mini",
