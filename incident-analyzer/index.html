@@ -91,6 +91,25 @@
             align-self: flex-start;
             border-bottom-left-radius: 0.25rem;
         }
+        
+        /* --- NEW: AI Selector Styling --- */
+        .ai-selector img {
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            transition: all 0.2s ease-in-out;
+            opacity: 0.5;
+        }
+        .ai-selector img:hover {
+            opacity: 0.8;
+        }
+        .ai-selector img.active {
+            opacity: 1;
+            border-color: #60a5fa; /* Light Blue border */
+            box-shadow: 0 0 15px rgba(96, 165, 250, 0.6);
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -130,6 +149,13 @@
             <!-- AI Assistant Section -->
             <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col h-[700px]">
                 <h2 class="text-xl font-semibold text-white mb-4">3. Ask the AI Assistant</h2>
+                
+                <!-- NEW: AI Selector -->
+                <div class="ai-selector flex justify-center gap-4 mb-4">
+                    <img id="gemini-selector" src="https://static.vecteezy.com/system/resources/thumbnails/055/687/063/small/circle-gemini-google-icon-symbol-logo-free-png.png" alt="Gemini" class="active" title="Use Gemini">
+                    <img id="chatgpt-selector" src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/2048px-ChatGPT_logo.svg.png" alt="ChatGPT" title="Use ChatGPT">
+                </div>
+
                 <div id="chat-history" class="flex-grow overflow-y-auto mb-4 p-4 bg-gray-900 rounded-lg flex flex-col">
                     <!-- Chat messages will be added here -->
                     <div class="chat-bubble chat-bubble-assistant">Hello! Once your data is loaded, ask me anything about your incidents. For example: "A user is reporting error code 503. What are the common causes and solutions based on past incidents?"</div>
@@ -157,19 +183,24 @@
         const askAiBtn = document.getElementById('ask-ai-btn');
         const btnText = document.getElementById('btn-text');
         const btnSpinner = document.getElementById('btn-spinner');
+        const geminiSelector = document.getElementById('gemini-selector');
+        const chatgptSelector = document.getElementById('chatgpt-selector');
 
-        // State variables
+        // --- NEW: API Keys and State Variables ---
+        const GEMINI_API_KEY = "AIzaSyBOurSwEdhn6IHFpFr-BMhhp54iVsa8aYs";
+        const CHATGPT_API_KEY = "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";
+
         let parsedDataAsString = '';
-        let conversationHistory = [];
+        let geminiChatHistory = [];
+        let chatgptChatHistory = [];
+        let selectedAI = 'gemini';
 
         // --- 1. File Handling Logic ---
         fileInput.addEventListener('change', handleFile);
 
         function handleFile(event) {
             const file = event.target.files[0];
-            if (!file) {
-                return;
-            }
+            if (!file) return;
 
             fileInfo.textContent = `Processing file: ${file.name}...`;
             const reader = new FileReader();
@@ -177,12 +208,8 @@
             reader.onload = function(e) {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                
-                // Get the first sheet
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                
-                // Convert sheet to JSON and then to a string for the AI
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (jsonData.length === 0) {
@@ -190,13 +217,9 @@
                     return;
                 }
 
-                // Convert array of arrays to a CSV-like string for the AI prompt
                 parsedDataAsString = jsonData.map(row => row.join(', ')).join('\n');
-
-                // Display the data in a table for preview
                 displayTable(jsonData);
 
-                // Update UI
                 fileInfo.textContent = `Successfully loaded: ${file.name}`;
                 mainContent.classList.remove('hidden');
                 aiQuestion.disabled = false;
@@ -216,10 +239,7 @@
                 dataPreview.innerHTML = '<p class="text-gray-500">No data to display.</p>';
                 return;
             }
-
             const table = document.createElement('table');
-            
-            // Create header row
             const headerRow = document.createElement('tr');
             data[0].forEach(headerText => {
                 const th = document.createElement('th');
@@ -228,31 +248,49 @@
             });
             table.appendChild(headerRow);
 
-            // Create data rows
             for (let i = 1; i < data.length; i++) {
-                const rowData = data[i];
                 const row = document.createElement('tr');
-                rowData.forEach(cellText => {
+                data[i].forEach(cellText => {
                     const td = document.createElement('td');
                     td.textContent = cellText;
                     row.appendChild(td);
                 });
                 table.appendChild(row);
             }
-
-            dataPreview.innerHTML = ''; // Clear previous content
+            dataPreview.innerHTML = '';
             dataPreview.appendChild(table);
         }
         
         // --- 3. AI Chat Logic ---
-        askAiBtn.addEventListener('click', handleAIChat);
-        aiQuestion.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') {
-                handleAIChat();
-            }
+        
+        // --- NEW: AI Selector Event Listeners ---
+        geminiSelector.addEventListener('click', () => {
+            selectedAI = 'gemini';
+            geminiSelector.classList.add('active');
+            chatgptSelector.classList.remove('active');
+            clearAIChat();
         });
 
-        async function handleAIChat() {
+        chatgptSelector.addEventListener('click', () => {
+            selectedAI = 'chatgpt';
+            chatgptSelector.classList.add('active');
+            geminiSelector.classList.remove('active');
+            clearAIChat();
+        });
+
+        function clearAIChat() {
+            geminiChatHistory = [];
+            chatgptChatHistory = [];
+            chatHistory.innerHTML = '<div class="chat-bubble chat-bubble-assistant">AI model switched. Ask a new question to start the conversation.</div>';
+        }
+
+        askAiBtn.addEventListener('click', handleAIChat);
+        aiQuestion.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') handleAIChat();
+        });
+
+        // --- NEW: Main chat handler to route to the correct AI ---
+        function handleAIChat() {
             const userQuery = aiQuestion.value.trim();
             if (!userQuery) return;
             if (!parsedDataAsString) {
@@ -260,31 +298,36 @@
                 return;
             }
 
-            // Add user message to chat
-            addMessageToChat(userQuery, 'user');
-            aiQuestion.value = '';
+            if (selectedAI === 'gemini') {
+                askGemini(userQuery);
+            } else {
+                askChatGPT(userQuery);
+            }
+        }
 
-            // Show loading state
+        async function askGemini(userQuery) {
+            addMessageToChat(userQuery, 'user');
+            geminiChatHistory.push({ role: "user", parts: [{ text: userQuery }] });
+            aiQuestion.value = '';
             toggleLoading(true);
             
-            // Prepare the prompt for the AI
-            const prompt = `You are an expert AI assistant specializing in analyzing incident logs. Your task is to help users troubleshoot issues based on historical data from the provided CSV/Excel file. When a user asks a question, carefully analyze the data to find related incidents, identify patterns, and suggest concrete troubleshooting steps. Be clear, concise, and helpful.
+            const systemPrompt = `You are an expert AI assistant specializing in analyzing incident logs. Your task is to help users troubleshoot issues based on historical data from the provided CSV/Excel file. When a user asks a question, carefully analyze the data to find related incidents, identify patterns, and suggest concrete troubleshooting steps. Be clear, concise, and helpful.
 
 Here is the data from the incident log:
 --- DATA START ---
 ${parsedDataAsString}
 --- DATA END ---
 
-Now, please answer the user's question based only on the data provided.
-User's Question: "${userQuery}"`;
-            
-            // Add user's message to conversation history for the API call
-            conversationHistory.push({ role: "user", parts: [{ text: prompt }] });
+Now, please answer the user's question based only on the data provided.`;
+
+            // On the first turn, send the system prompt and data context. On subsequent turns, just send the new question.
+            const messagesToSend = (geminiChatHistory.length === 1)
+                ? [{ role: 'user', parts: [{ text: `${systemPrompt}\nUser's Question: "${userQuery}"` }] }]
+                : geminiChatHistory;
 
             try {
-                const payload = { contents: conversationHistory };
-                const apiKey = ""; // API key will be injected by the environment
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = { contents: messagesToSend };
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
                 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -292,23 +335,64 @@ User's Question: "${userQuery}"`;
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    throw new Error(`API request failed with status ${response.status}`);
-                }
-
+                if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
                 const result = await response.json();
-                
                 const aiResponse = result.candidates[0].content.parts[0].text;
                 
-                // Add AI response to chat and history
                 addMessageToChat(aiResponse, 'assistant');
-                conversationHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+                geminiChatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
 
             } catch (error) {
-                console.error("AI API Error:", error);
-                addMessageToChat(`Sorry, I encountered an error: ${error.message}`, 'assistant');
+                console.error("Gemini API Error:", error);
+                addMessageToChat(`Sorry, I encountered an error with Gemini: ${error.message}`, 'assistant');
+                geminiChatHistory.pop(); // Remove the user's message if the API call failed
             } finally {
-                // Hide loading state
+                toggleLoading(false);
+            }
+        }
+
+        async function askChatGPT(userQuery) {
+            addMessageToChat(userQuery, 'user');
+            chatgptChatHistory.push({ role: "user", content: userQuery });
+            aiQuestion.value = '';
+            toggleLoading(true);
+
+            const systemPrompt = `You are an expert AI assistant specializing in analyzing incident logs. Your task is to help users troubleshoot issues based on historical data from the provided CSV/Excel file. When a user asks a question, carefully analyze the data to find related incidents, identify patterns, and suggest concrete troubleshooting steps. Be clear, concise, and helpful. The data is provided below.\n--- DATA START ---\n${parsedDataAsString}\n--- DATA END ---`;
+
+            const messagesToSend = [
+                { role: "system", content: systemPrompt },
+                ...chatgptChatHistory
+            ];
+
+            try {
+                const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + CHATGPT_API_KEY
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-4o-mini",
+                        messages: messagesToSend
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API request failed: ${errorData.error.message}`);
+                }
+
+                const data = await response.json();
+                const aiResponse = data.choices[0].message.content;
+
+                addMessageToChat(aiResponse, 'assistant');
+                chatgptChatHistory.push({ role: 'assistant', content: aiResponse });
+
+            } catch (error) {
+                console.error("ChatGPT API Error:", error);
+                addMessageToChat(`Sorry, I encountered an error with ChatGPT: ${error.message}`, 'assistant');
+                chatgptChatHistory.pop(); // Remove the user's message if the API call failed
+            } finally {
                 toggleLoading(false);
             }
         }
@@ -318,18 +402,15 @@ User's Question: "${userQuery}"`;
             messageDiv.className = `chat-bubble ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`;
             messageDiv.textContent = message;
             chatHistory.appendChild(messageDiv);
-            
-            // Scroll to the latest message
             chatHistory.scrollTop = chatHistory.scrollHeight;
         }
 
         function toggleLoading(isLoading) {
+            askAiBtn.disabled = isLoading;
             if (isLoading) {
-                askAiBtn.disabled = true;
                 btnText.classList.add('hidden');
                 btnSpinner.classList.remove('hidden');
             } else {
-                askAiBtn.disabled = false;
                 btnText.classList.remove('hidden');
                 btnSpinner.classList.add('hidden');
             }
