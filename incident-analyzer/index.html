@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Log AI Assistant</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- SheetJS (XLSX) library for reading Excel/CSV files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Dark blue-gray background */
+            color: #d1d5db; /* Light gray text */
+        }
+
+        /* Custom scrollbar for a more integrated look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Spinner for loading states */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #3b82f6; /* Blue */
+            width: 24px;
+            height: 24px;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Styling for the data table preview */
+        #data-preview table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #data-preview th, #data-preview td {
+            border: 1px solid #374151;
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 0.875rem;
+        }
+        #data-preview th {
+            background-color: #1f2937;
+            font-weight: 600;
+        }
+        #data-preview tr:nth-child(even) {
+            background-color: #1f2937;
+        }
+        
+        /* Styling for the AI chat bubbles */
+        .chat-bubble {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .chat-bubble-user {
+            background-color: #3b82f6; /* Blue */
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.25rem;
+        }
+        .chat-bubble-assistant {
+            background-color: #374151; /* Gray */
+            color: #d1d5db;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="container mx-auto max-w-7xl">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-white">Incident Log AI Assistant</h1>
+            <p class="mt-2 text-lg text-gray-400">Upload an incident log (.csv or .xlsx) and ask the AI for troubleshooting help.</p>
+        </header>
+
+        <!-- Step 1: File Upload -->
+        <div id="upload-section" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
+            <h2 class="text-xl font-semibold text-white mb-4">1. Upload Your Incident Log</h2>
+            <div class="flex justify-center items-center border-2 border-dashed border-gray-600 rounded-lg p-8">
+                <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Browse for File (.csv, .xlsx)
+                    <input type="file" id="file-input" class="hidden" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+                </label>
+            </div>
+            <div id="file-info" class="text-center mt-4 text-gray-400">No file selected.</div>
+        </div>
+
+        <!-- Step 2: Data Preview and AI Chat -->
+        <div id="main-content" class="grid grid-cols-1 lg:grid-cols-2 gap-8 hidden">
+            <!-- Data Preview Section -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold text-white mb-4">2. Data Preview</h2>
+                <div id="data-preview" class="overflow-auto max-h-[600px] bg-gray-900 rounded-md p-2">
+                    <p class="text-gray-500">Your data will be displayed here...</p>
+                </div>
+            </div>
+
+            <!-- AI Assistant Section -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col h-[700px]">
+                <h2 class="text-xl font-semibold text-white mb-4">3. Ask the AI Assistant</h2>
+                <div id="chat-history" class="flex-grow overflow-y-auto mb-4 p-4 bg-gray-900 rounded-lg flex flex-col">
+                    <!-- Chat messages will be added here -->
+                    <div class="chat-bubble chat-bubble-assistant">Hello! Once your data is loaded, ask me anything about your incidents. For example: "A user is reporting error code 503. What are the common causes and solutions based on past incidents?"</div>
+                </div>
+                <div id="chat-input-area" class="flex gap-4">
+                    <input type="text" id="ai-question" class="flex-grow bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Type your question here..." disabled>
+                    <button id="ask-ai-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
+                        <span id="btn-text">Ask AI</span>
+                        <div id="btn-spinner" class="spinner hidden"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // DOM Element References
+        const fileInput = document.getElementById('file-input');
+        const fileInfo = document.getElementById('file-info');
+        const mainContent = document.getElementById('main-content');
+        const dataPreview = document.getElementById('data-preview');
+        const chatHistory = document.getElementById('chat-history');
+        const aiQuestion = document.getElementById('ai-question');
+        const askAiBtn = document.getElementById('ask-ai-btn');
+        const btnText = document.getElementById('btn-text');
+        const btnSpinner = document.getElementById('btn-spinner');
+
+        // State variables
+        let parsedDataAsString = '';
+        let conversationHistory = [];
+
+        // --- 1. File Handling Logic ---
+        fileInput.addEventListener('change', handleFile);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            fileInfo.textContent = `Processing file: ${file.name}...`;
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Get the first sheet
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // Convert sheet to JSON and then to a string for the AI
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (jsonData.length === 0) {
+                    fileInfo.textContent = "Error: The selected file is empty.";
+                    return;
+                }
+
+                // Convert array of arrays to a CSV-like string for the AI prompt
+                parsedDataAsString = jsonData.map(row => row.join(', ')).join('\n');
+
+                // Display the data in a table for preview
+                displayTable(jsonData);
+
+                // Update UI
+                fileInfo.textContent = `Successfully loaded: ${file.name}`;
+                mainContent.classList.remove('hidden');
+                aiQuestion.disabled = false;
+                askAiBtn.disabled = false;
+            };
+
+            reader.onerror = function() {
+                fileInfo.textContent = "Error reading the file.";
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- 2. Data Display Logic ---
+        function displayTable(data) {
+            if (!data || data.length === 0) {
+                dataPreview.innerHTML = '<p class="text-gray-500">No data to display.</p>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            
+            // Create header row
+            const headerRow = document.createElement('tr');
+            data[0].forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                headerRow.appendChild(th);
+            });
+            table.appendChild(headerRow);
+
+            // Create data rows
+            for (let i = 1; i < data.length; i++) {
+                const rowData = data[i];
+                const row = document.createElement('tr');
+                rowData.forEach(cellText => {
+                    const td = document.createElement('td');
+                    td.textContent = cellText;
+                    row.appendChild(td);
+                });
+                table.appendChild(row);
+            }
+
+            dataPreview.innerHTML = ''; // Clear previous content
+            dataPreview.appendChild(table);
+        }
+        
+        // --- 3. AI Chat Logic ---
+        askAiBtn.addEventListener('click', handleAIChat);
+        aiQuestion.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                handleAIChat();
+            }
+        });
+
+        async function handleAIChat() {
+            const userQuery = aiQuestion.value.trim();
+            if (!userQuery) return;
+            if (!parsedDataAsString) {
+                alert("Please upload a file first.");
+                return;
+            }
+
+            // Add user message to chat
+            addMessageToChat(userQuery, 'user');
+            aiQuestion.value = '';
+
+            // Show loading state
+            toggleLoading(true);
+            
+            // Prepare the prompt for the AI
+            const prompt = `You are an expert AI assistant specializing in analyzing incident logs. Your task is to help users troubleshoot issues based on historical data from the provided CSV/Excel file. When a user asks a question, carefully analyze the data to find related incidents, identify patterns, and suggest concrete troubleshooting steps. Be clear, concise, and helpful.
+
+Here is the data from the incident log:
+--- DATA START ---
+${parsedDataAsString}
+--- DATA END ---
+
+Now, please answer the user's question based only on the data provided.
+User's Question: "${userQuery}"`;
+            
+            // Add user's message to conversation history for the API call
+            conversationHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            try {
+                const payload = { contents: conversationHistory };
+                const apiKey = ""; // API key will be injected by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                const aiResponse = result.candidates[0].content.parts[0].text;
+                
+                // Add AI response to chat and history
+                addMessageToChat(aiResponse, 'assistant');
+                conversationHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+
+            } catch (error) {
+                console.error("AI API Error:", error);
+                addMessageToChat(`Sorry, I encountered an error: ${error.message}`, 'assistant');
+            } finally {
+                // Hide loading state
+                toggleLoading(false);
+            }
+        }
+
+        function addMessageToChat(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-bubble ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`;
+            messageDiv.textContent = message;
+            chatHistory.appendChild(messageDiv);
+            
+            // Scroll to the latest message
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function toggleLoading(isLoading) {
+            if (isLoading) {
+                askAiBtn.disabled = true;
+                btnText.classList.add('hidden');
+                btnSpinner.classList.remove('hidden');
+            } else {
+                askAiBtn.disabled = false;
+                btnText.classList.remove('hidden');
+                btnSpinner.classList.add('hidden');
+            }
+        }
+
+    </script>
+</body>
+</html>
