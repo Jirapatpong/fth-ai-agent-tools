@@ -25,6 +25,10 @@
         }
 
         /* --- Base & Layout --- */
+        html {
+            height: 100%;
+            overflow: hidden;
+        }
         * { 
             box-sizing: border-box; 
             -webkit-tap-highlight-color: transparent;
@@ -34,7 +38,7 @@
             margin: 0;
             background-color: var(--bg-color);
             color: var(--text-primary);
-            height: 100vh;
+            height: 100%;
             overflow: hidden;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -564,7 +568,7 @@
             .tab-panel { display: flex; flex: 1; }
         }
         
-        @media (max-width: 360px) {
+        @media (max-width: 400px) {
             .header h1 { font-size: 1.3rem; }
             .btn { padding: 12px; font-size: 0.9rem; }
             .order-actions { grid-template-columns: 1fr; }
@@ -732,6 +736,7 @@
             currentPage: 1, itemsPerPage: 42, total: 0
         };
         
+        let pendingItem = null;
         const formatCurrency = (num) => `฿${num.toFixed(2)}`;
 
         // --- UI & STATE MANAGEMENT ---
@@ -776,6 +781,7 @@
                 order: [], selectedItem: null, paymentMethod: null,
                 currentPage: 1, itemsPerPage: 42, total: 0
             };
+            pendingItem = null;
             renderOrder();
             updateHeaderInfo();
             document.querySelectorAll('.selection-btn.selected').forEach(btn => btn.classList.remove('selected'));
@@ -789,7 +795,6 @@
         document.getElementById('login-btn').addEventListener('click', () => {
             if (document.getElementById('username').value === 'admin' && document.getElementById('password').value === 'admin') {
                 hideModal('login-modal');
-                resetTransaction();
             } else {
                 const loginError = document.getElementById('login-error');
                 loginError.textContent = 'Invalid credentials.';
@@ -826,6 +831,11 @@
             updateHeaderInfo();
             hideNumpad();
             hideModal('setup-modal');
+
+            if (pendingItem) {
+                addToOrder(pendingItem);
+                pendingItem = null;
+            }
         });
 
         // --- TAB NAVIGATION ---
@@ -911,6 +921,11 @@
 
         // --- ORDER MANAGEMENT ---
         function addToOrder(item) {
+            if (!appState.saleMode) {
+                pendingItem = item;
+                showModal('setup-modal');
+                return;
+            }
             const existing = appState.order.find(i => i.id === item.id);
             if (existing) {
                 existing.quantity++;
@@ -991,7 +1006,10 @@
             }
         });
 
-        document.getElementById('cancel-trans-btn').addEventListener('click', () => resetTransaction());
+        document.getElementById('cancel-trans-btn').addEventListener('click', () => {
+             hideModal('receipt-modal');
+             resetTransaction();
+        });
 
         // --- PAYMENT FLOW ---
         document.getElementById('payment-btn').addEventListener('click', () => {
