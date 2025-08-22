@@ -69,7 +69,7 @@
             display: flex; 
             gap: 16px; 
             overflow: hidden;
-            height: calc(100% - 80px); /* Adjust based on header height */
+            height: calc(100% - 80px);
         }
 
         /* --- Menu Panel (Left) --- */
@@ -138,12 +138,11 @@
         .product-grid {
             flex-grow: 1;
             display: grid;
-            /* --- FIX: Enforce 5 columns and 5 rows --- */
             grid-template-columns: repeat(5, 1fr);
             grid-template-rows: repeat(5, 1fr);
             gap: 12px;
             padding: 16px;
-            overflow: hidden; /* Hide overflow, pagination will handle it */
+            overflow: hidden;
         }
         .product-card {
             background: var(--surface-color);
@@ -233,7 +232,7 @@
             font-size: 1.4rem; 
             font-weight: 600; 
         }
-        .clear-order {
+        .clear-order, #close-order-panel {
             background: none;
             border: none;
             color: var(--danger-color);
@@ -242,9 +241,10 @@
             padding: 6px 10px;
             border-radius: 6px;
         }
-        .clear-order:active {
+        .clear-order:active, #close-order-panel:active {
             background-color: #FEF2F2;
         }
+        #close-order-panel { display: none; }
         .order-items { 
             flex-grow: 1; 
             overflow-y: auto; 
@@ -448,21 +448,85 @@
             background-color: var(--primary-color); 
             color: white; 
         }
+        
+        #mobile-order-trigger {
+            display: none;
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 999;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            box-shadow: var(--shadow-lg);
+            cursor: pointer;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.3s ease;
+        }
+        #mobile-order-trigger:active {
+            transform: scale(0.98);
+        }
 
-        /* Responsive adjustments */
         @media (max-width: 1024px) {
             .pos-body {
                 flex-direction: column;
             }
-            .order-panel {
-                max-width: 100%;
-                height: 40%;
-            }
             .menu-panel {
-                height: 60%;
+                flex-grow: 1;
+                height: 100%;
+            }
+            .order-panel {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+                height: 85%;
+                max-width: 100%;
+                z-index: 1001;
+                border-radius: 24px 24px 0 0;
+                transform: translateY(100%);
+                transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            }
+            .order-panel.visible {
+                transform: translateY(0);
+            }
+            #close-order-panel {
+                display: block;
             }
             .product-grid {
                 grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                grid-template-rows: unset;
+                overflow-y: auto;
+            }
+            .menu-footer {
+                display: none;
+            }
+            #mobile-order-trigger {
+                display: flex;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            #pos-header-info {
+                font-size: 0.8rem;
+            }
+            .product-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            .product-card {
+                height: 180px;
+            }
+            .product-card img {
+                height: 90px;
             }
         }
     </style>
@@ -489,10 +553,10 @@
                         </div>
                     </div>
                 </div>
-                <div class="order-panel">
+                <div class="order-panel" id="order-panel">
                     <div class="order-header">
                         <h2>Current Order</h2>
-                        <button class="clear-order" id="clear-order-btn">Clear All</button>
+                        <button class="clear-order" id="close-order-panel">Close</button>
                     </div>
                     <ul class="order-items" id="order-items"></ul>
                     <div class="order-footer">
@@ -508,6 +572,12 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Mobile Order Trigger -->
+    <div id="mobile-order-trigger">
+        <span id="mobile-item-count">0 Items</span>
+        <span id="mobile-total-price">฿0.00</span>
     </div>
 
     <!-- Modals -->
@@ -775,8 +845,12 @@
 
         function renderOrder() {
             const container = document.getElementById('order-items');
+            const mobileTrigger = document.getElementById('mobile-order-trigger');
+            const mobileItemCount = document.getElementById('mobile-item-count');
+            const mobileTotalPrice = document.getElementById('mobile-total-price');
             container.innerHTML = '';
             let subtotal = 0;
+            let totalItems = 0;
             
             if (appState.order.length === 0) {
                 container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary)">No items in order</div>';
@@ -812,6 +886,7 @@
                     });
                     container.appendChild(li);
                     subtotal += item.price * item.quantity;
+                    totalItems += item.quantity;
                 });
             }
             
@@ -820,6 +895,10 @@
             document.getElementById('subtotal').textContent = formatCurrency(subtotal);
             document.getElementById('tax').textContent = formatCurrency(tax);
             document.getElementById('total').textContent = formatCurrency(total);
+
+            // Update mobile trigger
+            mobileItemCount.textContent = `${totalItems} Item${totalItems !== 1 ? 's' : ''}`;
+            mobileTotalPrice.textContent = formatCurrency(total);
         }
 
         function adjustQuantity(id, delta) {
@@ -861,6 +940,15 @@
         document.getElementById('payment-btn').addEventListener('click', () => {
             if (appState.order.length === 0) { alert('Please add items to the order first.'); return; }
             alert('Payment functionality would be implemented here.');
+        });
+
+        // --- MOBILE PANEL ---
+        const orderPanel = document.getElementById('order-panel');
+        document.getElementById('mobile-order-trigger').addEventListener('click', () => {
+            orderPanel.classList.add('visible');
+        });
+        document.getElementById('close-order-panel').addEventListener('click', () => {
+            orderPanel.classList.remove('visible');
         });
 
         // --- NUMPAD ---
