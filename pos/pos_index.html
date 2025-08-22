@@ -57,11 +57,14 @@
             box-shadow: var(--shadow);
             position: relative;
             z-index: 10;
+            min-height: 60px;
         }
         .header h1 { 
             margin: 0; 
             font-size: 1.5rem; 
             font-weight: 600; 
+            white-space: nowrap;
+            margin-right: 12px;
         }
         #pos-header-info { 
             text-align: right; 
@@ -70,10 +73,18 @@
             padding: 6px 10px;
             background-color: #EEF2FF;
             border-radius: 8px;
-            max-width: 60%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            flex-shrink: 1;
+            min-width: 0;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+            max-width: 65%;
+        }
+        #pos-header-info:hover {
+            background-color: #E0E7FF;
         }
         
         /* --- Tab Navigation --- */
@@ -195,7 +206,6 @@
             transition: all 0.2s ease-in-out;
             display: flex;
             flex-direction: column;
-            height: 180px;
             overflow: hidden;
         }
         .product-card:active { 
@@ -206,8 +216,6 @@
             width: 100%; 
             height: 100px; 
             object-fit: cover; 
-            border-top-left-radius: 11px; 
-            border-top-right-radius: 11px;
         }
         .product-info {
             padding: 10px;
@@ -215,7 +223,7 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: center;
             overflow: hidden;
         }
         .product-name { 
@@ -231,6 +239,31 @@
             font-size: 0.95rem; 
             color: var(--primary-color); 
             font-weight: 600; 
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--surface-color);
+        }
+        .pagination-controls button {
+            background: none;
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            margin: 0 5px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .pagination-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #page-info {
+            font-size: 0.9rem;
+            font-weight: 500;
         }
         
         /* --- Order Panel --- */
@@ -386,6 +419,10 @@
             transform: scale(0.98); 
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-primary:hover { background-color: var(--primary-hover); }
         .btn-danger { background-color: var(--danger-color); color: white; }
@@ -436,8 +473,9 @@
             margin-bottom: 14px; 
             border: 1px solid var(--border-color);
             border-radius: 10px; 
-            font-size: 1rem; 
-            text-align: center;
+            font-size: 1.2rem; 
+            text-align: right;
+            font-weight: 600;
             background-color: var(--bg-color); 
             cursor: pointer;
         }
@@ -493,45 +531,77 @@
             color: white; 
         }
         
-        /* --- Empty States --- */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-secondary);
+        /* --- Receipt Modal --- */
+        #receipt-content {
+            font-family: 'Courier New', Courier, monospace;
+            text-align: left;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            padding: 15px;
+            background: #fff;
+            color: #000;
+            max-width: 320px;
+            margin: 0 auto;
         }
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 16px;
-            color: var(--border-color);
+        #receipt-content hr {
+            border: none;
+            border-top: 1px dashed #000;
+        }
+        #receipt-content table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #receipt-content th, #receipt-content td {
+            padding: 2px 0;
+        }
+        #receipt-content .text-center { text-align: center; }
+        #receipt-content .text-right { text-align: right; }
+        #receipt-content .item-row td:first-child {
+            max-width: 150px;
+            word-wrap: break-word;
         }
         
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #receipt-modal, #receipt-modal * {
+                visibility: visible;
+            }
+            #receipt-modal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                padding: 0;
+                margin: 0;
+            }
+            #receipt-modal .modal-content {
+                box-shadow: none;
+                border-radius: 0;
+                max-width: 100%;
+                padding: 0;
+            }
+            #receipt-modal #custom-modal-actions {
+                display: none;
+            }
+        }
+
         /* --- Responsive Adjustments --- */
-        @media (min-width: 480px) {
-            .product-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
+        @media (min-width: 640px) {
+            .product-grid { grid-template-columns: repeat(3, 1fr); }
         }
-        
         @media (min-width: 768px) {
-            .container {
-                flex-direction: row;
-            }
-            .tab-navigation {
-                display: none;
-            }
-            .header {
-                display: none;
-            }
-            .main-content {
-                flex-direction: row;
-            }
-            .tab-panel {
-                display: flex;
-                flex: 1;
-            }
-            #payment-panel {
-                display: none;
-            }
+            .product-grid { grid-template-columns: repeat(4, 1fr); }
+            .container { flex-direction: row; }
+            .tab-navigation, .header { display: none; }
+            .main-content { flex-direction: row; }
+            .tab-panel { display: flex; flex: 1; }
+            #payment-panel { display: none; }
+        }
+        @media (min-width: 1024px) {
+            .product-grid { grid-template-columns: repeat(5, 1fr); }
         }
     </style>
 </head>
@@ -539,7 +609,9 @@
     <div class="container">
         <header class="header">
             <h1>Modern POS</h1>
-            <div id="pos-header-info">Waiting for transaction...</div>
+            <div id="pos-header-info">
+                Waiting for transaction...
+            </div>
         </header>
         
         <div class="tab-navigation">
@@ -556,6 +628,11 @@
                 </div>
                 <div class="category-tabs" id="category-tabs"></div>
                 <div class="product-grid" id="product-grid"></div>
+                <div class="pagination-controls">
+                    <button id="prev-page">Previous</button>
+                    <span id="page-info"></span>
+                    <button id="next-page">Next</button>
+                </div>
             </div>
             
             <!-- Order Panel -->
@@ -583,21 +660,17 @@
                     <h2>Payment</h2>
                 </div>
                 <div class="payment-options">
-                    <div class="payment-option" data-method="cash">
+                    <div class="payment-option" data-method="Cash">
                         <i>💵</i>
                         <span>Cash</span>
                     </div>
-                    <div class="payment-option" data-method="card">
+                    <div class="payment-option" data-method="Visa">
                         <i>💳</i>
-                        <span>Card</span>
+                        <span>Visa</span>
                     </div>
-                    <div class="payment-option" data-method="mobile">
-                        <i>📱</i>
-                        <span>Mobile Pay</span>
-                    </div>
-                    <div class="payment-option" data-method="transfer">
-                        <i>↗️</i>
-                        <span>Bank Transfer</span>
+                    <div class="payment-option" data-method="Mastercard">
+                        <i>💳</i>
+                        <span>Mastercard</span>
                     </div>
                 </div>
                 <div class="order-footer">
@@ -638,6 +711,39 @@
         </div>
     </div>
 
+    <div id="tender-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Tender</h2>
+            <div class="summary-line total" style="margin: 0 0 15px 0; padding: 0;">
+                <span>Total Due</span><span id="tender-total">฿0.00</span>
+            </div>
+            <input type="text" id="amount-tendered" class="modal-input numpad-trigger" placeholder="0.00" readonly>
+             <div class="summary-line" style="font-size: 1.1rem;">
+                <span>Change Due</span><span id="change-due">฿0.00</span>
+            </div>
+            <button id="finalize-payment-btn" class="btn btn-success" style="width: 100%; margin-top: 16px;">Finalize Payment</button>
+        </div>
+    </div>
+
+    <div id="receipt-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 380px; padding: 10px;">
+            <div id="receipt-content"></div>
+            <div id="custom-modal-actions" class="order-actions">
+                <button class="btn" id="print-receipt-btn" style="background-color: var(--text-secondary); color: white;">Print</button>
+                <button class="btn btn-primary" id="new-order-btn">New Order</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Alert/Confirm Modal -->
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="custom-modal-title"></h2>
+            <p id="custom-modal-message" style="margin: 20px 0;"></p>
+            <div id="custom-modal-actions-alert"></div>
+        </div>
+    </div>
+
     <!-- Numpad -->
     <div id="numpad">
         <button data-key="1">1</button> <button data-key="2">2</button> <button data-key="3">3</button>
@@ -648,39 +754,31 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // --- DATA with category-specific images ---
+        // --- DATA ---
         const menuItems = [
-            // Appetizers
             { id: 1, name: "Spring Rolls", category: "Appetizers", price: 120, image: "https://images.unsplash.com/photo-1626700051175-6818013a1f87?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 2, name: "Garlic Bread", category: "Appetizers", price: 90, image: "https://images.unsplash.com/photo-1573140247632-f2fd4a1c7bfa?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 3, name: "Bruschetta", category: "Appetizers", price: 150, image: "https://images.unsplash.com/photo-1529566652340-2f9802e86f3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 4, name: "Stuffed Mushrooms", category: "Appetizers", price: 160, image: "https://images.unsplash.com/photo-1497888325766-4c67d0cdb113?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            
-            // Main Courses
             { id: 11, name: "Spaghetti Carbonara", category: "Main Courses", price: 280, image: "https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 12, name: "Margherita Pizza", category: "Main Courses", price: 250, image: "https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 13, name: "Grilled Salmon", category: "Main Courses", price: 450, image: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 14, name: "Steak Frites", category: "Main Courses", price: 550, image: "https://images.unsplash.com/photo-1546964124-0cce460f38ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            
-            // Desserts
+            { id: 15, name: "Chicken Alfredo", category: "Main Courses", price: 320, image: "https://images.unsplash.com/photo-1588013273468-437e4a464de3?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 16, name: "Beef Burger", category: "Main Courses", price: 290, image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 31, name: "Chocolate Cake", category: "Desserts", price: 120, image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 32, name: "Cheesecake", category: "Desserts", price: 140, image: "https://images.unsplash.com/photo-1524351199678-941a58a3df50?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 33, name: "Apple Pie", category: "Desserts", price: 110, image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            
-            // Drinks
             { id: 41, name: "Water", category: "Drinks", price: 20, image: "https://images.unsplash.com/photo-1550591635-3f7168e8d7db?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 42, name: "Coca-Cola", category: "Drinks", price: 40, image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
             { id: 43, name: "Orange Juice", category: "Drinks", price: 60, image: "https://images.unsplash.com/photo-1613478223719-2ab802602423?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 44, name: "Iced Tea", category: "Drinks", price: 50, image: "https://images.unsplash.com/photo-1556745753-b2904692b3cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
         ];
 
         let appState = {
-            saleMode: null,
-            table: null,
-            guests: null,
-            member: null,
-            order: [],
-            selectedItem: null,
-            paymentMethod: null
+            saleMode: null, table: null, guests: null, member: null, 
+            order: [], selectedItem: null, paymentMethod: null,
+            currentPage: 1, itemsPerPage: 10, total: 0
         };
         
         const formatCurrency = (num) => `฿${num.toFixed(2)}`;
@@ -689,71 +787,62 @@
         const numpad = document.getElementById('numpad');
         let activeNumpadInput = null;
 
-        function showModal(modalId) { 
-            document.getElementById(modalId).classList.add('active'); 
-        }
-        
-        function hideModal(modalId) { 
-            document.getElementById(modalId).classList.remove('active'); 
+        // --- CUSTOM MODAL FUNCTIONS ---
+        function customAlert(message, title = 'Alert') {
+            document.getElementById('custom-modal-title').textContent = title;
+            document.getElementById('custom-modal-message').textContent = message;
+            document.getElementById('custom-modal-actions-alert').innerHTML = `<button class="btn btn-primary btn-full">OK</button>`;
+            document.getElementById('custom-modal-actions-alert').querySelector('button').onclick = () => hideModal('custom-modal');
+            showModal('custom-modal');
         }
 
-        function showNumpad(inputElement) { 
-            activeNumpadInput = inputElement; 
-            numpad.classList.add('active'); 
-        }
-        
-        function hideNumpad() { 
-            activeNumpadInput = null; 
-            numpad.classList.remove('active'); 
-        }
+        function showModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+        function hideModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+        function showNumpad(inputElement) { activeNumpadInput = inputElement; numpad.classList.add('active'); }
+        function hideNumpad() { activeNumpadInput = null; numpad.classList.remove('active'); }
         
         function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.dataset.tab === tabName) {
-                    btn.classList.add('active');
-                }
-            });
-            
-            // Update tab panels
-            document.querySelectorAll('.tab-panel').forEach(panel => {
-                panel.classList.remove('active');
-                if (panel.id === tabName) {
-                    panel.classList.add('active');
-                }
-            });
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === tabName));
+        }
+        
+        function updateHeaderInfo() {
+            const headerInfo = document.getElementById('pos-header-info');
+            let infoText = 'Waiting for transaction...';
+            if (appState.saleMode) {
+                let infoParts = [`<strong>${appState.saleMode}</strong>`];
+                if (appState.table) infoParts.push(`T: <strong>${appState.table}</strong>`);
+                if (appState.guests) infoParts.push(`G: <strong>${appState.guests}</strong>`);
+                if (appState.member) infoParts.push(`M: <strong>${appState.member}</strong>`);
+                infoText = infoParts.join(' | ');
+            }
+            headerInfo.innerHTML = infoText;
         }
         
         function resetTransaction() {
             appState = { 
-                saleMode: null, 
-                table: null, 
-                guests: null, 
-                member: null, 
-                order: [], 
-                selectedItem: null, 
-                paymentMethod: null 
+                saleMode: null, table: null, guests: null, member: null, 
+                order: [], selectedItem: null, paymentMethod: null,
+                currentPage: 1, itemsPerPage: 10, total: 0
             };
             renderOrder();
-            document.getElementById('pos-header-info').textContent = 'Waiting for transaction...';
-            document.querySelectorAll('.selection-btn').forEach(btn => btn.classList.remove('selected'));
+            updateHeaderInfo();
+            document.querySelectorAll('.selection-btn.selected').forEach(btn => btn.classList.remove('selected'));
             document.getElementById('dine-in-details').style.display = 'none';
-            ['table-number', 'customer-count', 'member-id'].forEach(id => {
-                document.getElementById(id).value = '';
-            });
+            ['table-number', 'customer-count', 'member-id'].forEach(id => document.getElementById(id).value = '');
             switchTab('menu-panel');
             showModal('setup-modal');
         }
 
         // --- LOGIN ---
         document.getElementById('login-btn').addEventListener('click', () => {
-            if (document.getElementById('username').value === 'admin' && 
-                document.getElementById('password').value === 'admin') {
+            if (document.getElementById('username').value === 'admin' && document.getElementById('password').value === 'admin') {
                 hideModal('login-modal');
                 resetTransaction();
             } else {
-                document.getElementById('login-error').textContent = 'Invalid credentials.';
+                const loginError = document.getElementById('login-error');
+                loginError.textContent = 'Invalid credentials.';
+                setTimeout(() => loginError.textContent = '', 2000);
             }
         });
         
@@ -761,95 +850,48 @@
         document.getElementById('dine-in-btn').addEventListener('click', e => {
             appState.saleMode = 'Dine In';
             document.querySelectorAll('.selection-btn').forEach(btn => btn.classList.remove('selected'));
-            e.target.classList.add('selected');
+            e.currentTarget.classList.add('selected');
             document.getElementById('dine-in-details').style.display = 'block';
         });
         
         document.getElementById('take-out-btn').addEventListener('click', e => {
             appState.saleMode = 'Take Out';
+            appState.table = null; appState.guests = null;
             document.querySelectorAll('.selection-btn').forEach(btn => btn.classList.remove('selected'));
-            e.target.classList.add('selected');
+            e.currentTarget.classList.add('selected');
             document.getElementById('dine-in-details').style.display = 'none';
         });
         
         document.getElementById('start-order-btn').addEventListener('click', () => {
-            if (!appState.saleMode) { 
-                alert('Please select a sale mode.'); 
-                return; 
-            }
-            
+            if (!appState.saleMode) { customAlert('Please select a sale mode.'); return; }
             if (appState.saleMode === 'Dine In') {
                 const table = document.getElementById('table-number').value;
                 const guests = document.getElementById('customer-count').value;
-                if (!table || !guests) { 
-                    alert('Please enter Table and Guest numbers.'); 
-                    return; 
-                }
+                if (!table || !guests) { customAlert('Please enter Table and Guest numbers.'); return; }
                 appState.table = table;
                 appState.guests = guests;
             }
-            
             appState.member = document.getElementById('member-id').value.trim() || null;
-            
-            let info = `<strong>${appState.saleMode}</strong>`;
-            if (appState.table) {
-                info += ` | Table: <strong>${appState.table}</strong> | Guests: <strong>${appState.guests}</strong>`;
-            }
-            if (appState.member) {
-                info += ` | Member ID: <strong>${appState.member}</strong>`;
-            }
-            
-            document.getElementById('pos-header-info').textContent = info;
+            updateHeaderInfo();
             hideNumpad();
             hideModal('setup-modal');
         });
 
         // --- TAB NAVIGATION ---
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', () => {
-                switchTab(button.dataset.tab);
-            });
-        });
-        
-        document.getElementById('back-to-order-btn').addEventListener('click', () => {
-            switchTab('order-panel');
-        });
+        document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+        document.getElementById('back-to-order-btn').addEventListener('click', () => switchTab('order-panel'));
         
         document.getElementById('payment-btn').addEventListener('click', () => {
-            if (appState.order.length === 0) { 
-                alert('Please add items to the order first.'); 
-                return; 
-            }
-            document.getElementById('amount-due').textContent = document.getElementById('total').textContent;
+            if (appState.order.length === 0) { customAlert('Please add items to the order first.'); return; }
+            document.getElementById('amount-due').textContent = formatCurrency(appState.total);
             switchTab('payment-panel');
         });
         
-        document.querySelectorAll('.payment-option').forEach(option => {
-            option.addEventListener('click', () => {
-                document.querySelectorAll('.payment-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                option.classList.add('selected');
-                appState.paymentMethod = option.dataset.method;
-            });
-        });
-        
-        document.getElementById('complete-payment-btn').addEventListener('click', () => {
-            if (!appState.paymentMethod) {
-                alert('Please select a payment method.');
-                return;
-            }
-            
-            alert(`Payment completed via ${appState.paymentMethod}! Transaction total: ${document.getElementById('total').textContent}`);
-            resetTransaction();
-        });
-
         // --- MENU, CATEGORIES, & SEARCH ---
         function initMenu() {
             const categories = ['All', ...new Set(menuItems.map(item => item.category))];
             const container = document.getElementById('category-tabs');
             container.innerHTML = '';
-            
             categories.forEach(cat => {
                 const tab = document.createElement('button');
                 tab.className = 'category-tab';
@@ -858,55 +900,69 @@
                 tab.addEventListener('click', () => {
                     container.querySelector('.active').classList.remove('active');
                     tab.classList.add('active');
+                    appState.currentPage = 1;
                     updateMenuView();
                 });
                 container.appendChild(tab);
             });
-            
-            document.getElementById('search-bar').addEventListener('input', updateMenuView);
+            document.getElementById('search-bar').addEventListener('input', () => {
+                appState.currentPage = 1;
+                updateMenuView();
+            });
+            document.getElementById('prev-page').addEventListener('click', () => { appState.currentPage--; updateMenuView(); });
+            document.getElementById('next-page').addEventListener('click', () => { appState.currentPage++; updateMenuView(); });
             updateMenuView();
         }
         
         function updateMenuView() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase();
             const activeCategory = document.querySelector('.category-tab.active').textContent.trim();
-
-            const filteredItems = menuItems.filter(item => {
-                const inCategory = (activeCategory === 'All' || item.category === activeCategory);
-                const matchesSearch = item.name.toLowerCase().includes(searchTerm);
-                return inCategory && matchesSearch;
-            });
+            const filteredItems = menuItems.filter(item => 
+                (activeCategory === 'All' || item.category === activeCategory) &&
+                item.name.toLowerCase().includes(searchTerm)
+            );
             
-            renderProducts(filteredItems);
+            const totalPages = Math.ceil(filteredItems.length / appState.itemsPerPage);
+            const paginatedItems = filteredItems.slice((appState.currentPage - 1) * appState.itemsPerPage, appState.currentPage * appState.itemsPerPage);
+            
+            renderProducts(paginatedItems);
+            renderPagination(totalPages, filteredItems.length);
         }
 
         function renderProducts(items) {
             const grid = document.getElementById('product-grid');
             grid.innerHTML = '';
-            
             if (items.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column: 1 / -1;">
-                        <div>🔍</div>
-                        <p>No items found</p>
-                    </div>
-                `;
+                grid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><i>🔍</i><p>No items found</p></div>`;
                 return;
             }
-            
             items.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'product-card';
                 card.innerHTML = `
-                    <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI0U1RTdFQiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkeT0iMC4zNWVtIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzlDQTNBQyI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';">
+                    <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='https://placehold.co/400x200/e5e7eb/9ca3ac?text=No+Image';">
                     <div class="product-info">
                         <div class="product-name">${item.name}</div>
                         <div class="product-price">${formatCurrency(item.price)}</div>
-                    </div>
-                `;
+                    </div>`;
                 card.addEventListener('click', () => addToOrder(item));
                 grid.appendChild(card);
             });
+        }
+
+        function renderPagination(totalPages, totalItems) {
+            const pageInfo = document.getElementById('page-info');
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+
+            if (totalItems === 0 || totalPages <= 1) {
+                pageInfo.parentElement.style.display = 'none';
+            } else {
+                pageInfo.parentElement.style.display = 'flex';
+                pageInfo.textContent = `Page ${appState.currentPage} of ${totalPages}`;
+                prevBtn.disabled = appState.currentPage === 1;
+                nextBtn.disabled = appState.currentPage === totalPages;
+            }
         }
 
         // --- ORDER MANAGEMENT ---
@@ -927,12 +983,7 @@
             let subtotal = 0;
             
             if (appState.order.length === 0) {
-                container.innerHTML = `
-                    <li class="empty-state">
-                        <div>🛒</div>
-                        <p>No items in order</p>
-                    </li>
-                `;
+                container.innerHTML = `<li class="empty-state"><i>🛒</i><p>No items in order</p></li>`;
             } else {
                 appState.order.forEach((item, index) => {
                     const li = document.createElement('li');
@@ -949,30 +1000,21 @@
                         <div class="order-item-price">
                             ${formatCurrency(item.price * item.quantity)}
                             <span class="each">${formatCurrency(item.price)} each</span>
-                        </div>
-                    `;
-                    li.querySelector('.minus').addEventListener('click', e => {
-                        e.stopPropagation();
-                        adjustQuantity(item.id, -1);
-                    });
-                    li.querySelector('.plus').addEventListener('click', e => {
-                        e.stopPropagation();
-                        adjustQuantity(item.id, 1);
-                    });
-                    li.addEventListener('click', () => {
-                        appState.selectedItem = index;
-                        renderOrder();
-                    });
+                        </div>`;
+                    li.querySelector('.minus').addEventListener('click', e => { e.stopPropagation(); adjustQuantity(item.id, -1); });
+                    li.querySelector('.plus').addEventListener('click', e => { e.stopPropagation(); adjustQuantity(item.id, 1); });
+                    li.addEventListener('click', () => { appState.selectedItem = (appState.selectedItem === index) ? null : index; renderOrder(); });
                     container.appendChild(li);
                     subtotal += item.price * item.quantity;
                 });
             }
             
             const tax = subtotal * 0.07;
-            const total = subtotal + tax;
+            appState.total = subtotal + tax;
             document.getElementById('subtotal').textContent = formatCurrency(subtotal);
             document.getElementById('tax').textContent = formatCurrency(tax);
-            document.getElementById('total').textContent = formatCurrency(total);
+            document.getElementById('total').textContent = formatCurrency(appState.total);
+            document.getElementById('void-item-btn').disabled = (appState.selectedItem === null);
         }
 
         function adjustQuantity(id, delta) {
@@ -993,35 +1035,123 @@
                 appState.selectedItem = null;
                 renderOrder();
             } else {
-                alert('Please select an item to void.');
+                customAlert('Please select an item to void first.');
             }
         });
 
         document.getElementById('clear-order-btn').addEventListener('click', () => {
-            if (appState.order.length === 0) return;
-            if (confirm('Are you sure you want to clear the entire order?')) {
+            if (appState.order.length > 0) {
                 appState.order = [];
                 appState.selectedItem = null;
                 renderOrder();
             }
         });
 
-        document.getElementById('cancel-trans-btn').addEventListener('click', () => {
-            if (appState.order.length > 0 && !confirm('Cancel transaction and clear order?')) return;
+        document.getElementById('cancel-trans-btn').addEventListener('click', () => resetTransaction());
+
+        // --- PAYMENT FLOW ---
+        document.querySelectorAll('.payment-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.payment-option.selected').forEach(opt => opt.classList.remove('selected'));
+                option.classList.add('selected');
+                appState.paymentMethod = option.dataset.method;
+            });
+        });
+
+        document.getElementById('complete-payment-btn').addEventListener('click', () => {
+            if (!appState.paymentMethod) {
+                customAlert('Please select a payment method.');
+                return;
+            }
+            document.getElementById('tender-total').textContent = formatCurrency(appState.total);
+            const amountTenderedInput = document.getElementById('amount-tendered');
+            amountTenderedInput.value = '';
+            document.getElementById('change-due').textContent = formatCurrency(0);
+            showModal('tender-modal');
+            showNumpad(amountTenderedInput);
+        });
+
+        document.getElementById('amount-tendered').addEventListener('input', () => {
+            const tendered = parseFloat(document.getElementById('amount-tendered').value) || 0;
+            const change = tendered - appState.total;
+            document.getElementById('change-due').textContent = formatCurrency(Math.max(0, change));
+            document.getElementById('finalize-payment-btn').disabled = tendered < appState.total;
+        });
+
+        document.getElementById('finalize-payment-btn').addEventListener('click', () => {
+            hideModal('tender-modal');
+            hideNumpad();
+            generateReceipt();
+            showModal('receipt-modal');
+        });
+
+        function generateReceipt() {
+            const now = new Date();
+            const receiptContent = document.getElementById('receipt-content');
+            const tendered = parseFloat(document.getElementById('amount-tendered').value) || appState.total;
+            const change = tendered - appState.total;
+
+            let itemsHtml = '';
+            appState.order.forEach(item => {
+                itemsHtml += `
+                    <tr class="item-row">
+                        <td>${item.quantity} x ${item.name}</td>
+                        <td class="text-right">${formatCurrency(item.price * item.quantity)}</td>
+                    </tr>
+                `;
+            });
+
+            receiptContent.innerHTML = `
+                <div class="text-center">
+                    <h2>My Restaurant</h2>
+                    <p>123 Food Street, Bangkok</p>
+                    <p>Date: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}</p>
+                </div>
+                <hr>
+                <p>
+                    ${appState.saleMode}${appState.table ? ` | Table: ${appState.table}` : ''}${appState.guests ? ` | Guests: ${appState.guests}` : ''}
+                </p>
+                <hr>
+                <table>
+                    <thead><tr><th>Item</th><th class="text-right">Price</th></tr></thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+                <hr>
+                <table>
+                    <tbody>
+                        <tr><td>Subtotal:</td><td class="text-right">${document.getElementById('subtotal').textContent}</td></tr>
+                        <tr><td>Tax (7%):</td><td class="text-right">${document.getElementById('tax').textContent}</td></tr>
+                        <tr><td><strong>Total:</strong></td><td class="text-right"><strong>${formatCurrency(appState.total)}</strong></td></tr>
+                    </tbody>
+                </table>
+                <hr>
+                 <table>
+                    <tbody>
+                        <tr><td>Payment Method:</td><td class="text-right">${appState.paymentMethod}</td></tr>
+                        <tr><td>Tendered:</td><td class="text-right">${formatCurrency(tendered)}</td></tr>
+                        <tr><td>Change:</td><td class="text-right">${formatCurrency(Math.max(0, change))}</td></tr>
+                    </tbody>
+                </table>
+                <hr>
+                <p class="text-center">Thank you for your visit!</p>
+            `;
+        }
+
+        document.getElementById('print-receipt-btn').addEventListener('click', () => window.print());
+        document.getElementById('new-order-btn').addEventListener('click', () => {
+            hideModal('receipt-modal');
             resetTransaction();
         });
 
         // --- NUMPAD ---
-        document.querySelectorAll('.numpad-trigger').forEach(input => {
-            input.addEventListener('click', () => showNumpad(input));
-        });
+        document.querySelectorAll('.numpad-trigger').forEach(input => input.addEventListener('click', () => showNumpad(input)));
         
-        document.getElementById('numpad').addEventListener('click', e => {
-            if (!e.target.matches('button')) return;
-            const key = e.target.dataset.key;
-            if (!activeNumpadInput) return;
+        numpad.addEventListener('click', e => {
+            if (!e.target.matches('button') || !activeNumpadInput) return;
             
+            const key = e.target.dataset.key;
             const currentValue = activeNumpadInput.value || '';
+            
             if (key === 'bs') {
                 activeNumpadInput.value = currentValue.slice(0, -1);
             } else if (key === 'ok') {
@@ -1029,43 +1159,12 @@
             } else {
                 activeNumpadInput.value = currentValue + key;
             }
+            // Manually trigger input event for tender calculation
+            activeNumpadInput.dispatchEvent(new Event('input'));
         });
 
         // --- INIT ---
         initMenu();
-        
-        // Add swipe functionality for mobile
-        let touchStartX = 0;
-        let touchEndX = 0;
-        const mainContent = document.querySelector('.main-content');
-        
-        mainContent.addEventListener('touchstart', e => {
-            touchStartX = e.changedTouches[0].screenX;
-        }, false);
-        
-        mainContent.addEventListener('touchend', e => {
-            touchEndX = e.changedTouches[0].screenX;
-            handleSwipe();
-        }, false);
-        
-        function handleSwipe() {
-            const swipeThreshold = 50;
-            const diff = touchStartX - touchEndX;
-            
-            if (Math.abs(diff) > swipeThreshold) {
-                const tabs = ['menu-panel', 'order-panel', 'payment-panel'];
-                const currentTab = document.querySelector('.tab-panel.active').id;
-                const currentIndex = tabs.indexOf(currentTab);
-                
-                if (diff > 0 && currentIndex < tabs.length - 1) {
-                    // Swipe left - go to next tab
-                    switchTab(tabs[currentIndex + 1]);
-                } else if (diff < 0 && currentIndex > 0) {
-                    // Swipe right - go to previous tab
-                    switchTab(tabs[currentIndex - 1]);
-                }
-            }
-        }
     });
     </script>
 </body>
