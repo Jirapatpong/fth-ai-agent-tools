@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Restaurant POS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4F46E5;
+            --primary-hover: #4338CA;
+            --danger-color: #EF4444;
+            --warning-color: #F59E0B;
+            --success-color: #10B981;
+            --bg-color: #F3F4F6;
+            --surface-color: #FFFFFF;
+            --text-primary: #1F2937;
+            --text-secondary: #6B7280;
+            --border-color: #E5E7EB;
+            --font-family: 'Kanit', sans-serif;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+
+        /* --- Base & Layout --- */
+        * { box-sizing: border-box; }
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            touch-action: manipulation;
+        }
+        .container { display: flex; width: 100%; height: 100%; }
+        .main-content {
+            flex-grow: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            gap: 16px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        .header h1 { margin: 0; font-size: 1.8rem; font-weight: 600; }
+        #pos-header-info { 
+            text-align: right; 
+            font-size: 1rem; 
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            background-color: #EEF2FF;
+            border-radius: 8px;
+        }
+        .pos-body { 
+            flex-grow: 1; 
+            display: flex; 
+            gap: 16px; 
+            overflow: hidden;
+            height: calc(100% - 80px); /* Adjust based on header height */
+        }
+
+        /* --- Menu Panel (Left) --- */
+        .menu-panel {
+            flex: 3;
+            background-color: var(--surface-color);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .menu-controls {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+        }
+        #search-bar {
+            flex-grow: 1;
+            padding: 14px 16px;
+            font-size: 1rem;
+            font-family: var(--font-family);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background-color: var(--bg-color);
+            min-height: 48px;
+        }
+        #search-bar:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px #C7D2FE;
+        }
+        .category-tabs {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            background-color: #F9FAFB;
+            -ms-overflow-style: none; 
+            scrollbar-width: none;
+            padding: 0 8px;
+        }
+        .category-tabs::-webkit-scrollbar { display: none; }
+        
+        .category-tab {
+            padding: 16px 20px;
+            border: none;
+            background-color: transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            white-space: nowrap;
+            color: var(--text-secondary);
+            transition: all 0.2s ease-in-out;
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            border-bottom: 3px solid transparent;
+        }
+        .category-tab:hover { background-color: #F3F4F6; }
+        .category-tab.active {
+            color: var(--primary-color);
+            background-color: var(--surface-color);
+            border-bottom: 3px solid var(--primary-color);
+        }
+        .product-grid {
+            flex-grow: 1;
+            display: grid;
+            /* --- FIX: Enforce 5 columns and 5 rows --- */
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            gap: 12px;
+            padding: 16px;
+            overflow: hidden; /* Hide overflow, pagination will handle it */
+        }
+        .product-card {
+            background: var(--surface-color);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .product-card:active { 
+            transform: scale(0.97); 
+            box-shadow: var(--shadow);
+        }
+        .product-card img { 
+            width: 100%; 
+            height: 80px; 
+            object-fit: cover; 
+        }
+        .product-info {
+            padding: 8px;
+            text-align: center;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .product-name { 
+            font-size: 0.9rem; 
+            font-weight: 500; 
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .product-price { 
+            font-size: 0.95rem; 
+            color: var(--primary-color); 
+            font-weight: 600; 
+        }
+        .menu-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border-color);
+            background-color: #F9FAFB;
+        }
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .pagination button {
+            padding: 8px 16px;
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #page-info {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        /* --- Order Panel (Right) --- */
+        .order-panel {
+            flex: 2;
+            max-width: 450px;
+            background-color: var(--surface-color);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .order-header { 
+            padding: 16px; 
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .order-header h2 { 
+            margin: 0; 
+            font-size: 1.4rem; 
+            font-weight: 600; 
+        }
+        .clear-order {
+            background: none;
+            border: none;
+            color: var(--danger-color);
+            font-size: 0.9rem;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+        .clear-order:active {
+            background-color: #FEF2F2;
+        }
+        .order-items { 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            padding: 8px 0; 
+            list-style-type: none; 
+            margin: 0; 
+        }
+        .order-item {
+            display: grid; 
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center; 
+            padding: 16px; 
+            cursor: pointer;
+            border-bottom: 1px solid var(--bg-color);
+            min-height: 70px;
+        }
+        .order-item.selected { background-color: #E0E7FF; }
+        .order-item-details .name { font-weight: 500; font-size: 1rem; }
+        .order-item-details .qty { 
+            font-size: 0.9rem; 
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .qty-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: var(--surface-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .qty-btn:active {
+            background-color: var(--bg-color);
+        }
+        .order-item-price { 
+            font-weight: 600; 
+            font-size: 1.1rem; 
+            text-align: right;
+        }
+        .order-item-price .each {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: normal;
+        }
+        .order-footer { 
+            padding: 20px; 
+            background: #F9FAFB; 
+            border-top: 1px solid var(--border-color); 
+        }
+        .summary-line { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 12px; 
+            font-size: 1rem; 
+        }
+        .summary-line span:first-child { color: var(--text-secondary); }
+        .summary-line span:last-child { font-weight: 500; }
+        .summary-line.total { 
+            font-weight: 600; 
+            font-size: 1.5rem; 
+            margin-top: 16px; 
+            color: var(--text-primary); 
+            padding-top: 16px;
+            border-top: 1px dashed var(--border-color);
+        }
+        .order-actions {
+            padding-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* --- Buttons --- */
+        .btn {
+            padding: 16px; 
+            border: none; 
+            border-radius: 10px; 
+            cursor: pointer;
+            font-size: 1rem; 
+            font-weight: 600; 
+            font-family: var(--font-family);
+            transition: all 0.2s;
+            min-height: 54px;
+        }
+        .btn:active { 
+            transform: scale(0.98); 
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-warning { background-color: var(--warning-color); color: white; }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-full { grid-column: 1 / -1; }
+
+        /* --- Modals & Numpad --- */
+        .modal-overlay {
+            position: fixed; 
+            z-index: 1000; 
+            inset: 0; 
+            background-color: rgba(0,0,0,0.7);
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            opacity: 0; 
+            visibility: hidden; 
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active { 
+            opacity: 1; 
+            visibility: visible; 
+        }
+        .modal-content {
+            background-color: var(--surface-color); 
+            padding: 32px; 
+            border-radius: 16px;
+            width: 90%; 
+            max-width: 500px; 
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            text-align: center; 
+            transform: scale(0.95); 
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+        .modal-content h2 { 
+            font-size: 1.8rem; 
+            margin-top: 0; 
+            margin-bottom: 24px; 
+        }
+        .modal-input {
+            width: 100%; 
+            padding: 16px; 
+            margin-bottom: 16px; 
+            border: 1px solid var(--border-color);
+            border-radius: 10px; 
+            font-size: 1.1rem; 
+            text-align: center;
+            background-color: var(--bg-color); 
+            cursor: pointer;
+            min-height: 54px;
+        }
+        .selection-btn {
+            padding: 20px 0; 
+            width: 100%; 
+            font-size: 1.2rem; 
+            cursor: pointer;
+            border: 2px solid var(--border-color); 
+            background-color: transparent;
+            border-radius: 12px; 
+            transition: all 0.2s; 
+            font-weight: 500;
+            min-height: 60px;
+        }
+        .selection-btn.selected { 
+            border-color: var(--primary-color); 
+            background-color: #EEF2FF; 
+            color: var(--primary-color); 
+        }
+
+        #numpad {
+            position: fixed; 
+            z-index: 2000; 
+            bottom: 0; 
+            left: 0; 
+            right: 0;
+            background: #E5E7EB; 
+            padding: 16px; 
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px;
+            border-top-left-radius: 24px; 
+            border-top-right-radius: 24px;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
+            transform: translateY(100%); 
+            transition: transform 0.3s ease-in-out;
+        }
+        #numpad.active { transform: translateY(0); }
+        #numpad button { 
+            height: 60px; 
+            font-size: 1.5rem; 
+            font-weight: 500; 
+            border: none; 
+            border-radius: 12px; 
+            background: var(--surface-color);
+            touch-action: manipulation;
+        }
+        #numpad button:active {
+            background-color: var(--bg-color);
+        }
+        #numpad .numpad-action { 
+            background-color: var(--primary-color); 
+            color: white; 
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .pos-body {
+                flex-direction: column;
+            }
+            .order-panel {
+                max-width: 100%;
+                height: 40%;
+            }
+            .menu-panel {
+                height: 60%;
+            }
+            .product-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <main class="main-content">
+            <header class="header">
+                <h1>Modern POS</h1>
+                <div id="pos-header-info">Waiting for transaction...</div>
+            </header>
+            <div class="pos-body">
+                <div class="menu-panel">
+                    <div class="menu-controls">
+                        <input type="search" id="search-bar" placeholder="Search menu items...">
+                    </div>
+                    <div class="category-tabs" id="category-tabs"></div>
+                    <div class="product-grid" id="product-grid"></div>
+                    <div class="menu-footer">
+                        <div class="pagination" id="pagination-controls">
+                            <button id="prev-page-btn" class="btn">&lt; Prev</button>
+                            <span id="page-info"></span>
+                            <button id="next-page-btn" class="btn">Next &gt;</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="order-panel">
+                    <div class="order-header">
+                        <h2>Current Order</h2>
+                        <button class="clear-order" id="clear-order-btn">Clear All</button>
+                    </div>
+                    <ul class="order-items" id="order-items"></ul>
+                    <div class="order-footer">
+                        <div class="summary-line"><span>Subtotal</span><span id="subtotal">฿0.00</span></div>
+                        <div class="summary-line"><span>Tax (7%)</span><span id="tax">฿0.00</span></div>
+                        <div class="summary-line total"><span>Total</span><span id="total">฿0.00</span></div>
+                        <div class="order-actions">
+                            <button class="btn btn-warning" id="void-item-btn">Void Item</button>
+                            <button class="btn btn-danger" id="cancel-trans-btn">Cancel</button>
+                            <button class="btn btn-success btn-full" id="payment-btn">Payment</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="login-modal" class="modal-overlay active">
+        <div class="modal-content">
+            <h2>Welcome Back!</h2>
+            <input type="text" id="username" class="modal-input" placeholder="Username" value="admin">
+            <input type="password" id="password" class="modal-input" placeholder="Password" value="admin">
+            <button id="login-btn" class="btn btn-primary" style="width: 100%; margin-top: 16px;">Login</button>
+            <p id="login-error" style="color:red; margin-top:10px; height: 1em;"></p>
+        </div>
+    </div>
+    
+    <div id="setup-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>New Transaction</h2>
+            <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+                <button id="dine-in-btn" class="selection-btn">Dine In</button>
+                <button id="take-out-btn" class="selection-btn">Take Out</button>
+            </div>
+            <div id="dine-in-details" style="display:none;">
+                <input type="text" id="table-number" class="modal-input numpad-trigger" placeholder="Table Number" readonly>
+                <input type="text" id="customer-count" class="modal-input numpad-trigger" placeholder="Number of Guests" readonly>
+            </div>
+            <input type="text" id="member-id" class="modal-input numpad-trigger" placeholder="Member ID (Optional)" readonly>
+            <button id="start-order-btn" class="btn btn-primary" style="width: 100%; margin-top: 16px;">Start Order</button>
+        </div>
+    </div>
+    
+    <div id="payment-modal" class="modal-overlay"></div>
+
+    <!-- Numpad -->
+    <div id="numpad">
+        <button data-key="1">1</button> <button data-key="2">2</button> <button data-key="3">3</button>
+        <button data-key="4">4</button> <button data-key="5">5</button> <button data-key="6">6</button>
+        <button data-key="7">7</button> <button data-key="8">8</button> <button data-key="9">9</button>
+        <button data-key="bs">⌫</button> <button data-key="0">0</button> <button data-key="ok" class="numpad-action">OK</button>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA with category-specific images ---
+        const menuItems = [
+            // Appetizers
+            { id: 1, name: "Spring Rolls", category: "Appetizers", price: 120, image: "https://images.unsplash.com/photo-1626700051175-6818013a1f87?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 2, name: "Garlic Bread", category: "Appetizers", price: 90, image: "https://images.unsplash.com/photo-1573140247632-f2fd4a1c7bfa?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 3, name: "Bruschetta", category: "Appetizers", price: 150, image: "https://images.unsplash.com/photo-1529566652340-2f9802e86f3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 4, name: "Stuffed Mushrooms", category: "Appetizers", price: 160, image: "https://images.unsplash.com/photo-1497888325766-4c67d0cdb113?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 5, name: "Calamari", category: "Appetizers", price: 180, image: "https://images.unsplash.com/photo-1559715745-e1b33a4c5d48?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 6, name: "Onion Rings", category: "Appetizers", price: 100, image: "https://images.unsplash.com/photo-1573080496213-7c53b6dfa70b?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 7, name: "Chicken Wings", category: "Appetizers", price: 170, image: "https://images.unsplash.com/photo-1567620836588-fb8d2fe0180f?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 8, name: "Nachos", category: "Appetizers", price: 220, image: "https://images.unsplash.com/photo-1612927601605-c5f41e312c50?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 9, name: "Dumplings", category: "Appetizers", price: 140, image: "https://images.unsplash.com/photo-1585036156171-384164a8c675?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 10, name: "Cheese Platter", category: "Appetizers", price: 250, image: "https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            
+            // Main Courses
+            { id: 11, name: "Spaghetti Carbonara", category: "Main Courses", price: 280, image: "https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 12, name: "Margherita Pizza", category: "Main Courses", price: 250, image: "https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 13, name: "Grilled Salmon", category: "Main Courses", price: 450, image: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 14, name: "Steak Frites", category: "Main Courses", price: 550, image: "https://images.unsplash.com/photo-1546964124-0cce460f38ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 15, name: "Chicken Alfredo", category: "Main Courses", price: 290, image: "https://images.unsplash.com/photo-1598866594230-a7c12756260f?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 16, name: "Veggie Burger", category: "Main Courses", price: 240, image: "https://images.unsplash.com/photo-1596662951482-0c4ba74a6df6?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 17, name: "Beef Lasagna", category: "Main Courses", price: 270, image: "https://images.unsplash.com/photo-1574894709920-11b28e7367e3?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 18, name: "Pad Thai", category: "Main Courses", price: 180, image: "https://images.unsplash.com/photo-1559314809-0f8e5c8de6e5?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 19, name: "Fish and Chips", category: "Main Courses", price: 280, image: "https://images.unsplash.com/photo-1559715745-e1b33a4c5d48?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 20, name: "Roast Chicken", category: "Main Courses", price: 350, image: "https://images.unsplash.com/photo-1532550907401-d499f9dde6a7?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            
+            // Desserts
+            { id: 31, name: "Chocolate Cake", category: "Desserts", price: 120, image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 32, name: "Cheesecake", category: "Desserts", price: 140, image: "https://images.unsplash.com/photo-1524351199678-941a58a3df50?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 33, name: "Apple Pie", category: "Desserts", price: 110, image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 34, name: "Tiramisu", category: "Desserts", price: 150, image: "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 35, name: "Ice Cream", category: "Desserts", price: 80, image: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            
+            // Drinks
+            { id: 41, name: "Water", category: "Drinks", price: 20, image: "https://images.unsplash.com/photo-1550591635-3f7168e8d7db?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 42, name: "Coca-Cola", category: "Drinks", price: 40, image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 43, name: "Orange Juice", category: "Drinks", price: 60, image: "https://images.unsplash.com/photo-1613478223719-2ab802602423?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 44, name: "Iced Tea", category: "Drinks", price: 50, image: "https://images.unsplash.com/photo-1597480052135-5c03cae37e2e?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            { id: 45, name: "Coffee", category: "Drinks", price: 70, image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" }
+        ];
+
+        let appState = {};
+        const formatCurrency = (num) => `฿${num.toFixed(2)}`;
+
+        // --- UI & STATE MANAGEMENT ---
+        const numpad = document.getElementById('numpad');
+        let activeNumpadInput = null;
+
+        function showModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+        function hideModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+
+        function showNumpad(inputElement) { activeNumpadInput = inputElement; numpad.classList.add('active'); }
+        function hideNumpad() { activeNumpadInput = null; numpad.classList.remove('active'); }
+        
+        function resetTransaction() {
+             appState = { saleMode: null, table: null, guests: null, member: null, order: [], selectedItem: null, tender: null, currentPage: 1, itemsPerPage: 25 }; // 5x5 grid
+             renderOrder();
+             document.getElementById('pos-header-info').textContent = 'Waiting for transaction...';
+             document.querySelectorAll('.selection-btn').forEach(btn => btn.classList.remove('selected'));
+             document.getElementById('dine-in-details').style.display = 'none';
+             ['table-number', 'customer-count', 'member-id'].forEach(id => document.getElementById(id).value = '');
+             showModal('setup-modal');
+        }
+
+        // --- LOGIN ---
+        document.getElementById('login-btn').addEventListener('click', () => {
+            if (document.getElementById('username').value === 'admin' && document.getElementById('password').value === 'admin') {
+                hideModal('login-modal');
+                resetTransaction();
+            } else {
+                document.getElementById('login-error').textContent = 'Invalid credentials.';
+            }
+        });
+        
+        // --- TRANSACTION SETUP ---
+        document.getElementById('dine-in-btn').addEventListener('click', e => {
+            appState.saleMode = 'Dine In';
+            document.querySelectorAll('.selection-btn').forEach(btn => btn.classList.remove('selected'));
+            e.target.classList.add('selected');
+            document.getElementById('dine-in-details').style.display = 'block';
+        });
+        document.getElementById('take-out-btn').addEventListener('click', e => {
+            appState.saleMode = 'Take Out';
+            document.querySelectorAll('.selection-btn').forEach(btn => btn.classList.remove('selected'));
+            e.target.classList.add('selected');
+            document.getElementById('dine-in-details').style.display = 'none';
+        });
+        
+        document.getElementById('start-order-btn').addEventListener('click', () => {
+            if (!appState.saleMode) { alert('Please select a sale mode.'); return; }
+            if (appState.saleMode === 'Dine In') {
+                const table = document.getElementById('table-number').value;
+                const guests = document.getElementById('customer-count').value;
+                if (!table || !guests) { alert('Please enter Table and Guest numbers.'); return; }
+                appState.table = table;
+                appState.guests = guests;
+            }
+            appState.member = document.getElementById('member-id').value.trim() || null;
+            
+            let info = `<strong>${appState.saleMode}</strong>`;
+            if (appState.table) info += ` | Table: <strong>${appState.table}</strong> | Guests: <strong>${appState.guests}</strong>`;
+            if (appState.member) info += ` | Member ID: <strong>${appState.member}</strong>`;
+            document.getElementById('pos-header-info').innerHTML = info;
+
+            hideNumpad();
+            hideModal('setup-modal');
+        });
+
+        // --- MENU, CATEGORIES, & SEARCH ---
+        function initMenu() {
+            const categories = ['All', ...new Set(menuItems.map(item => item.category))];
+            const container = document.getElementById('category-tabs');
+            container.innerHTML = '';
+            categories.forEach(cat => {
+                const tab = document.createElement('button');
+                tab.className = 'category-tab';
+                tab.textContent = cat;
+                if (cat === 'All') tab.classList.add('active');
+                tab.addEventListener('click', () => {
+                    container.querySelector('.active').classList.remove('active');
+                    tab.classList.add('active');
+                    appState.currentPage = 1; // Reset page on category change
+                    updateMenuView();
+                });
+                container.appendChild(tab);
+            });
+            document.getElementById('search-bar').addEventListener('input', () => {
+                appState.currentPage = 1; // Reset page on search
+                updateMenuView();
+            });
+            updateMenuView();
+        }
+        
+        function updateMenuView() {
+            const searchTerm = document.getElementById('search-bar').value.toLowerCase();
+            const activeCategory = document.querySelector('.category-tab.active').textContent.trim();
+
+            const filteredItems = menuItems.filter(item => {
+                const inCategory = (activeCategory === 'All' || item.category === activeCategory);
+                const matchesSearch = item.name.toLowerCase().includes(searchTerm);
+                return inCategory && matchesSearch;
+            });
+            
+            const pageItems = filteredItems.slice((appState.currentPage - 1) * appState.itemsPerPage, appState.currentPage * appState.itemsPerPage);
+            
+            renderProducts(pageItems);
+            renderPagination(filteredItems.length);
+        }
+
+        function renderProducts(items) {
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = '';
+            
+            if (items.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary)">No items found</div>';
+                return;
+            }
+            
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI0U1RTdFQiIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkeT0iMC4zNWVtIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzlDQTNBQyI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';">
+                    <div class="product-info">
+                        <div class="product-name">${item.name}</div>
+                        <div class="product-price">${formatCurrency(item.price)}</div>
+                    </div>
+                `;
+                card.addEventListener('click', () => addToOrder(item));
+                grid.appendChild(card);
+            });
+        }
+        
+        function renderPagination(totalItems) {
+            const totalPages = Math.ceil(totalItems / appState.itemsPerPage);
+            const controls = document.getElementById('pagination-controls');
+            const pageInfo = document.getElementById('page-info');
+            const prevBtn = document.getElementById('prev-page-btn');
+            const nextBtn = document.getElementById('next-page-btn');
+
+            if (totalPages <= 1) {
+                controls.style.display = 'none';
+                return;
+            }
+
+            controls.style.display = 'flex';
+            pageInfo.textContent = `Page ${appState.currentPage} of ${totalPages}`;
+            prevBtn.disabled = appState.currentPage === 1;
+            nextBtn.disabled = appState.currentPage === totalPages;
+        }
+
+        document.getElementById('prev-page-btn').addEventListener('click', () => {
+            if (appState.currentPage > 1) {
+                appState.currentPage--;
+                updateMenuView();
+            }
+        });
+        document.getElementById('next-page-btn').addEventListener('click', () => {
+            const totalItems = menuItems.filter(item => {
+                const activeCategory = document.querySelector('.category-tab.active').textContent.trim();
+                const searchTerm = document.getElementById('search-bar').value.toLowerCase();
+                const inCategory = (activeCategory === 'All' || item.category === activeCategory);
+                const matchesSearch = item.name.toLowerCase().includes(searchTerm);
+                return inCategory && matchesSearch;
+            }).length;
+            const totalPages = Math.ceil(totalItems / appState.itemsPerPage);
+
+            if (appState.currentPage < totalPages) {
+                appState.currentPage++;
+                updateMenuView();
+            }
+        });
+
+        // --- ORDER MANAGEMENT ---
+        function addToOrder(item) {
+            const existing = appState.order.find(i => i.id === item.id);
+            if (existing) {
+                existing.quantity++;
+            } else {
+                appState.order.push({ ...item, quantity: 1 });
+            }
+            renderOrder();
+        }
+
+        function renderOrder() {
+            const container = document.getElementById('order-items');
+            container.innerHTML = '';
+            let subtotal = 0;
+            
+            if (appState.order.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary)">No items in order</div>';
+            } else {
+                appState.order.forEach((item, index) => {
+                    const li = document.createElement('li');
+                    li.className = `order-item ${index === appState.selectedItem ? 'selected' : ''}`;
+                    li.innerHTML = `
+                        <div class="order-item-details">
+                            <div class="name">${item.name}</div>
+                            <div class="qty">
+                                <button class="qty-btn minus" data-id="${item.id}">-</button>
+                                <span>${item.quantity}</span>
+                                <button class="qty-btn plus" data-id="${item.id}">+</button>
+                            </div>
+                        </div>
+                        <div class="order-item-price">
+                            ${formatCurrency(item.price * item.quantity)}
+                            <span class="each">${formatCurrency(item.price)} each</span>
+                        </div>
+                    `;
+                    li.querySelector('.minus').addEventListener('click', e => {
+                        e.stopPropagation();
+                        adjustQuantity(item.id, -1);
+                    });
+                    li.querySelector('.plus').addEventListener('click', e => {
+                        e.stopPropagation();
+                        adjustQuantity(item.id, 1);
+                    });
+                    li.addEventListener('click', () => {
+                        appState.selectedItem = index;
+                        renderOrder();
+                    });
+                    container.appendChild(li);
+                    subtotal += item.price * item.quantity;
+                });
+            }
+            
+            const tax = subtotal * 0.07;
+            const total = subtotal + tax;
+            document.getElementById('subtotal').textContent = formatCurrency(subtotal);
+            document.getElementById('tax').textContent = formatCurrency(tax);
+            document.getElementById('total').textContent = formatCurrency(total);
+        }
+
+        function adjustQuantity(id, delta) {
+            const item = appState.order.find(i => i.id === id);
+            if (item) {
+                item.quantity += delta;
+                if (item.quantity <= 0) {
+                    appState.order = appState.order.filter(i => i.id !== id);
+                    appState.selectedItem = null;
+                }
+                renderOrder();
+            }
+        }
+
+        document.getElementById('void-item-btn').addEventListener('click', () => {
+            if (appState.selectedItem !== null) {
+                appState.order.splice(appState.selectedItem, 1);
+                appState.selectedItem = null;
+                renderOrder();
+            } else {
+                alert('Please select an item to void.');
+            }
+        });
+
+        document.getElementById('clear-order-btn').addEventListener('click', () => {
+            if (appState.order.length === 0) return;
+            if (confirm('Are you sure you want to clear the entire order?')) {
+                appState.order = [];
+                appState.selectedItem = null;
+                renderOrder();
+            }
+        });
+
+        document.getElementById('cancel-trans-btn').addEventListener('click', () => {
+            if (appState.order.length > 0 && !confirm('Cancel transaction and clear order?')) return;
+            resetTransaction();
+        });
+
+        document.getElementById('payment-btn').addEventListener('click', () => {
+            if (appState.order.length === 0) { alert('Please add items to the order first.'); return; }
+            alert('Payment functionality would be implemented here.');
+        });
+
+        // --- NUMPAD ---
+        document.querySelectorAll('.numpad-trigger').forEach(input => {
+            input.addEventListener('click', () => showNumpad(input));
+        });
+        document.getElementById('numpad').addEventListener('click', e => {
+            if (!e.target.matches('button')) return;
+            const key = e.target.dataset.key;
+            if (!activeNumpadInput) return;
+            const currentValue = activeNumpadInput.value || '';
+            if (key === 'bs') {
+                activeNumpadInput.value = currentValue.slice(0, -1);
+            } else if (key === 'ok') {
+                hideNumpad();
+            } else {
+                activeNumpadInput.value = currentValue + key;
+            }
+        });
+
+        // --- INIT ---
+        initMenu();
+    });
+    </script>
+</body>
+</html>
