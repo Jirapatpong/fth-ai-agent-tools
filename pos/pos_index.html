@@ -192,7 +192,7 @@
         .product-grid {
             flex-grow: 1;
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 12px;
             padding: 12px;
             overflow-y: auto;
@@ -207,6 +207,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            aspect-ratio: 1 / 1.2;
         }
         .product-card:active { 
             transform: scale(0.97); 
@@ -214,7 +215,7 @@
         }
         .product-card img { 
             width: 100%; 
-            height: 100px; 
+            height: 60%;
             object-fit: cover; 
         }
         .product-info {
@@ -556,18 +557,11 @@
         }
 
         /* --- Responsive Adjustments --- */
-        @media (min-width: 640px) {
-            .product-grid { grid-template-columns: repeat(3, 1fr); }
-        }
         @media (min-width: 768px) {
-            .product-grid { grid-template-columns: repeat(4, 1fr); }
             .container { flex-direction: row; }
             .tab-navigation, .header { display: none; }
             .main-content { flex-direction: row; }
             .tab-panel { display: flex; flex: 1; }
-        }
-        @media (min-width: 1024px) {
-            .product-grid { grid-template-columns: repeat(5, 1fr); }
         }
     </style>
 </head>
@@ -664,8 +658,7 @@
         <div class="modal-content">
             <h2>Tender</h2>
             <div class="summary-line total" style="margin: 0 0 15px 0; padding: 0;">
-                <span>Total Due</span><span id="tender-total">฿0.00</span>
-            </div>
+                <span>Total Due</span><span id="tender-total">฿0.00</span></div>
             <input type="text" id="amount-tendered" class="modal-input numpad-trigger" placeholder="0.00" readonly>
              <div class="summary-line" style="font-size: 1.1rem;">
                 <span>Change Due</span><span id="change-due">฿0.00</span>
@@ -727,7 +720,7 @@
         let appState = {
             saleMode: null, table: null, guests: null, member: null, 
             order: [], selectedItem: null, paymentMethod: null,
-            currentPage: 1, itemsPerPage: 10, total: 0
+            currentPage: 1, itemsPerPage: 42, total: 0
         };
         
         const formatCurrency = (num) => `฿${num.toFixed(2)}`;
@@ -772,7 +765,7 @@
             appState = { 
                 saleMode: null, table: null, guests: null, member: null, 
                 order: [], selectedItem: null, paymentMethod: null,
-                currentPage: 1, itemsPerPage: 10, total: 0
+                currentPage: 1, itemsPerPage: 42, total: 0
             };
             renderOrder();
             updateHeaderInfo();
