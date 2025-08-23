@@ -197,22 +197,21 @@
         .product-grid {
             flex-grow: 1;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 12px;
-            padding: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            padding: 16px;
             overflow-y: auto;
-            touch-action: pan-y;
+            align-content: start;
         }
         .product-card {
             background: var(--surface-color);
             border-radius: 12px;
             border: 1px solid var(--border-color);
             cursor: pointer;
-            transition: all 0.2s ease-in-out;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            aspect-ratio: 1 / 1.1;
+            height: 180px;
         }
         .product-card:active { 
             transform: scale(0.97); 
@@ -220,8 +219,9 @@
         }
         .product-card img { 
             width: 100%; 
-            height: 55%;
+            height: 100px; 
             object-fit: cover; 
+            display: block;
         }
         .product-info {
             padding: 10px;
@@ -756,23 +756,117 @@
     document.addEventListener('DOMContentLoaded', () => {
         // --- DATA ---
         const menuItems = [
-            { id: 1, name: "Spring Rolls", category: "Appetizers", price: 120, image: "https://images.unsplash.com/photo-1626700051175-6818013a1f87?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 2, name: "Garlic Bread", category: "Appetizers", price: 90, image: "https://images.unsplash.com/photo-1573140247632-f2fd4a1c7bfa?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 3, name: "Bruschetta", category: "Appetizers", price: 150, image: "https://images.unsplash.com/photo-1529566652340-2f9802e86f3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 4, name: "Stuffed Mushrooms", category: "Appetizers", price: 160, image: "https://images.unsplash.com/photo-1497888325766-4c67d0cdb113?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 11, name: "Spaghetti Carbonara", category: "Main Courses", price: 280, image: "https://images.unsplash.com/photo-1621996346565-e3dbc353d2e5?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 12, name: "Margherita Pizza", category: "Main Courses", price: 250, image: "https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 13, name: "Grilled Salmon", category: "Main Courses", price: 450, image: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 14, name: "Steak Frites", category: "Main Courses", price: 550, image: "https://images.unsplash.com/photo-1546964124-0cce460f38ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 15, name: "Chicken Alfredo", category: "Main Courses", price: 320, image: "https://images.unsplash.com/photo-1588013273468-437e4a464de3?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 16, name: "Beef Burger", category: "Main Courses", price: 290, image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 31, name: "Chocolate Cake", category: "Desserts", price: 120, image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 32, name: "Cheesecake", category: "Desserts", price: 140, image: "https://images.unsplash.com/photo-1524351199678-941a58a3df50?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 33, name: "Apple Pie", category: "Desserts", price: 110, image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 41, name: "Water", category: "Drinks", price: 20, image: "https://images.unsplash.com/photo-1550591635-3f7168e8d7db?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 42, name: "Coca-Cola", category: "Drinks", price: 40, image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 43, name: "Orange Juice", category: "Drinks", price: 60, image: "https://images.unsplash.com/photo-1613478223719-2ab802602423?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
-            { id: 44, name: "Iced Tea", category: "Drinks", price: 50, image: "https://images.unsplash.com/photo-1556745753-b2904692b3cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" },
+            // Appetizers (10)
+            { id: 1, name: "Spring Rolls", category: "Appetizers", price: 120, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 2, name: "Garlic Bread", category: "Appetizers", price: 90, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 3, name: "Bruschetta", category: "Appetizers", price: 150, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 4, name: "Stuffed Mushrooms", category: "Appetizers", price: 160, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 5, name: "Calamari", category: "Appetizers", price: 180, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 6, name: "Onion Rings", category: "Appetizers", price: 110, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 7, name: "Chicken Wings", category: "Appetizers", price: 170, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 8, name: "Shrimp Cocktail", category: "Appetizers", price: 220, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 9, name: "Mozzarella Sticks", category: "Appetizers", price: 140, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            { id: 10, name: "Potstickers", category: "Appetizers", price: 130, image: "https://placehold.co/150x100/A7C7E7/FFFFFF?text=Food" },
+            
+            // Soups (10)
+            { id: 11, name: "Tomato Soup", category: "Soups", price: 100, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 12, name: "Chicken Noodle Soup", category: "Soups", price: 120, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 13, name: "Miso Soup", category: "Soups", price: 80, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 14, name: "French Onion Soup", category: "Soups", price: 150, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 15, name: "Lentil Soup", category: "Soups", price: 110, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 16, name: "Tom Yum Goong", category: "Soups", price: 180, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 17, name: "Clam Chowder", category: "Soups", price: 160, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 18, name: "Minestrone", category: "Soups", price: 130, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 19, name: "Hot and Sour Soup", category: "Soups", price: 120, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+            { id: 20, name: "Pumpkin Soup", category: "Soups", price: 110, image: "https://placehold.co/150x100/E7A7C7/FFFFFF?text=Food" },
+
+            // Salads (10)
+            { id: 21, name: "Caesar Salad", category: "Salads", price: 180, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 22, name: "Greek Salad", category: "Salads", price: 190, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 23, name: "Cobb Salad", category: "Salads", price: 220, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 24, name: "House Salad", category: "Salads", price: 150, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 25, name: "Spinach Salad", category: "Salads", price: 170, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 26, name: "Tuna Salad", category: "Salads", price: 200, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 27, name: "Fruit Salad", category: "Salads", price: 160, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 28, name: "Quinoa Salad", category: "Salads", price: 210, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 29, name: "Pasta Salad", category: "Salads", price: 180, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+            { id: 30, name: "Asian Chicken Salad", category: "Salads", price: 230, image: "https://placehold.co/150x100/C7E7A7/FFFFFF?text=Food" },
+
+            // Main Courses (20)
+            { id: 31, name: "Spaghetti Carbonara", category: "Main Courses", price: 280, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 32, name: "Margherita Pizza", category: "Main Courses", price: 250, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 33, name: "Grilled Salmon", category: "Main Courses", price: 450, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 34, name: "Steak Frites", category: "Main Courses", price: 550, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 35, name: "Chicken Alfredo", category: "Main Courses", price: 320, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 36, name: "Beef Burger", category: "Main Courses", price: 290, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 37, name: "Lasagna", category: "Main Courses", price: 300, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 38, name: "Fish and Chips", category: "Main Courses", price: 260, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 39, name: "Pad Thai", category: "Main Courses", price: 220, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 40, name: "Green Curry", category: "Main Courses", price: 240, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 41, name: "Chicken Teriyaki", category: "Main Courses", price: 280, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 42, name: "Pork Chop", category: "Main Courses", price: 350, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 43, name: "Vegetable Stir-Fry", category: "Main Courses", price: 200, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 44, name: "Shrimp Scampi", category: "Main Courses", price: 330, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 45, name: "BBQ Ribs", category: "Main Courses", price: 480, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 46, name: "Tacos (3)", category: "Main Courses", price: 250, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 47, name: "Ramen", category: "Main Courses", price: 270, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 48, name: "Sushi Platter", category: "Main Courses", price: 500, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 49, name: "Fettuccine Bolognese", category: "Main Courses", price: 290, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+            { id: 50, name: "Massaman Curry", category: "Main Courses", price: 260, image: "https://placehold.co/150x100/E7C7A7/FFFFFF?text=Food" },
+
+            // Desserts (20)
+            { id: 51, name: "Chocolate Cake", category: "Desserts", price: 120, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 52, name: "Cheesecake", category: "Desserts", price: 140, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 53, name: "Apple Pie", category: "Desserts", price: 110, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 54, name: "Ice Cream (2 scoops)", category: "Desserts", price: 90, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 55, name: "Tiramisu", category: "Desserts", price: 160, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 56, name: "Brownie with Ice Cream", category: "Desserts", price: 150, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 57, name: "Mango Sticky Rice", category: "Desserts", price: 130, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 58, name: "Panna Cotta", category: "Desserts", price: 140, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 59, name: "Creme Brulee", category: "Desserts", price: 150, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 60, name: "Red Velvet Cake", category: "Desserts", price: 130, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 61, name: "Fruit Tart", category: "Desserts", price: 120, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 62, name: "Chocolate Lava Cake", category: "Desserts", price: 170, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 63, name: "Macarons (3)", category: "Desserts", price: 100, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 64, name: "Affogato", category: "Desserts", price: 110, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 65, name: "Banana Split", category: "Desserts", price: 180, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 66, name: "Waffles", category: "Desserts", price: 160, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 67, name: "Crepes", category: "Desserts", price: 150, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 68, name: "Churros", category: "Desserts", price: 120, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 69, name: "Donuts (2)", category: "Desserts", price: 100, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+            { id: 70, name: "Mochi Ice Cream", category: "Desserts", price: 130, image: "https://placehold.co/150x100/A7A7E7/FFFFFF?text=Food" },
+
+            // Drinks (30)
+            { id: 71, name: "Water", category: "Drinks", price: 20, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 72, name: "Coca-Cola", category: "Drinks", price: 40, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 73, name: "Orange Juice", category: "Drinks", price: 60, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 74, name: "Iced Tea", category: "Drinks", price: 50, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 75, name: "Lemonade", category: "Drinks", price: 55, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 76, name: "Coffee", category: "Drinks", price: 70, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 77, name: "Latte", category: "Drinks", price: 80, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 78, name: "Cappuccino", category: "Drinks", price: 80, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 79, name: "Espresso", category: "Drinks", price: 60, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 80, name: "Hot Chocolate", category: "Drinks", price: 75, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 81, name: "Green Tea", category: "Drinks", price: 60, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 82, name: "Milkshake", category: "Drinks", price: 120, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 83, name: "Smoothie", category: "Drinks", price: 130, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 84, name: "Singha Beer", category: "Drinks", price: 100, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 85, name: "Chang Beer", category: "Drinks", price: 90, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 86, name: "Red Wine (Glass)", category: "Drinks", price: 250, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 87, name: "White Wine (Glass)", category: "Drinks", price: 250, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 88, name: "Mojito", category: "Drinks", price: 220, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 89, name: "Margarita", category: "Drinks", price: 220, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 90, name: "Sprite", category: "Drinks", price: 40, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 91, name: "Fanta", category: "Drinks", price: 40, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 92, name: "Apple Juice", category: "Drinks", price: 60, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 93, name: "Pineapple Juice", category: "Drinks", price: 60, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 94, name: "Thai Iced Tea", category: "Drinks", price: 65, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 95, name: "Thai Iced Coffee", category: "Drinks", price: 65, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 96, name: "Sparkling Water", category: "Drinks", price: 50, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 97, name: "Coconut Water", category: "Drinks", price: 70, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 98, name: "Herbal Tea", category: "Drinks", price: 60, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 99, name: "Soy Milk", category: "Drinks", price: 50, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
+            { id: 100, name: "Gin & Tonic", category: "Drinks", price: 200, image: "https://placehold.co/150x100/E7E7A7/FFFFFF?text=Food" },
         ];
 
         let appState = {
@@ -887,14 +981,15 @@
         
         // --- MENU, CATEGORIES, & SEARCH ---
         function initMenu() {
-            const categories = ['All', ...new Set(menuItems.map(item => item.category))];
+            const categories = [...new Set(menuItems.map(item => item.category))];
             const container = document.getElementById('category-tabs');
             container.innerHTML = '';
-            categories.forEach(cat => {
+            
+            categories.forEach((cat, index) => {
                 const tab = document.createElement('button');
                 tab.className = 'category-tab';
+                if (index === 0) tab.classList.add('active');
                 tab.textContent = cat;
-                if (cat === 'All') tab.classList.add('active');
                 tab.addEventListener('click', () => {
                     container.querySelector('.active').classList.remove('active');
                     tab.classList.add('active');
@@ -903,10 +998,28 @@
                 });
                 container.appendChild(tab);
             });
+
+            const allTab = document.createElement('button');
+            allTab.className = 'category-tab';
+            allTab.textContent = 'All';
+            allTab.addEventListener('click', () => {
+                 container.querySelector('.active').classList.remove('active');
+                 allTab.classList.add('active');
+                 appState.currentPage = 1;
+                 updateMenuView();
+            });
+            container.appendChild(allTab);
+
             document.getElementById('search-bar').addEventListener('input', () => {
+                const allTab = Array.from(document.querySelectorAll('.category-tab')).find(tab => tab.textContent === 'All');
+                if (allTab && !allTab.classList.contains('active')) {
+                    document.querySelector('.category-tab.active').classList.remove('active');
+                    allTab.classList.add('active');
+                }
                 appState.currentPage = 1;
                 updateMenuView();
             });
+
             document.getElementById('prev-page').addEventListener('click', () => { appState.currentPage--; updateMenuView(); });
             document.getElementById('next-page').addEventListener('click', () => { appState.currentPage++; updateMenuView(); });
             updateMenuView();
@@ -938,7 +1051,7 @@
                 const card = document.createElement('div');
                 card.className = 'product-card';
                 card.innerHTML = `
-                    <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='https://placehold.co/400x200/e5e7eb/9ca3ac?text=No+Image';">
+                    <img src="${item.image}" alt="${item.name}" onerror="this.onerror=null;this.src='https://placehold.co/150x100/CCCCCC/FFFFFF?text=No+Image';">
                     <div class="product-info">
                         <div class="product-name">${item.name}</div>
                         <div class="product-price">${formatCurrency(item.price)}</div>
