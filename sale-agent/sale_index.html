@@ -3,195 +3,74 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sales Estimator — Competitive POS Pricing (Agent Mode)</title>
+  <title>Sales Estimator — ChatGPT Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+    body { font-family: Inter, system-ui, sans-serif; }
     .chat-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: .75rem; margin-bottom: .5rem; white-space: pre-wrap; word-wrap: break-word; }
     .chat-bubble-user { background: #2563eb; color: #fff; align-self: flex-end; border-bottom-right-radius: .25rem; }
     .chat-bubble-assistant { background: #1f2937; color: #e5e7eb; align-self: flex-start; border-bottom-left-radius: .25rem; }
-    .chip { display:inline-flex; align-items:center; gap:.5rem; padding:.4rem .7rem; border-radius:9999px; border:1px solid #334155; background:#0f172a; cursor:pointer; }
-    .chip:hover { background:#111827; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8">
-  <div class="mx-auto max-w-7xl">
+  <div class="mx-auto max-w-6xl">
     <header class="mb-8">
-      <h1 class="text-3xl md:text-4xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
-      <p class="text-slate-400 mt-2">Agent-first experience. Upload a price book and I’ll ask the right questions, then produce Base / Competitive / Aggressive quotes automatically.</p>
+      <h1 class="text-3xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
+      <p class="text-slate-400 mt-2">Powered by ChatGPT Agent. Upload your price book and start chatting right away.</p>
     </header>
 
-    <!-- Upload & Preview + Agent Chat -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
         <h2 class="text-xl font-semibold mb-4">1) Upload Price Book</h2>
         <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
           <label class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 12l4-4m0 0l4 4m-4-4v12"/></svg>
             Browse (.xlsx/.csv)
             <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" />
           </label>
           <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
         </div>
-        <div class="mt-4 overflow-auto max-h-[420px] bg-slate-900 rounded-xl p-3" id="data-preview"><p class="text-slate-500">Your data preview will appear here…</p></div>
+        <div id="data-preview" class="mt-4 overflow-auto max-h-[400px] bg-slate-900 rounded-xl p-3 text-slate-400 text-sm">Preview will appear here…</div>
       </div>
 
       <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
-        <h2 class="text-xl font-semibold mb-4">2) Agent</h2>
-        <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col"></div>
-        <div id="quick-actions" class="mt-3 flex flex-wrap gap-2"></div>
+        <h2 class="text-xl font-semibold mb-4">2) Chat with ChatGPT Agent</h2>
+        <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col text-sm"></div>
         <div class="mt-3 flex gap-2">
-          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder="Type an answer (or use the choices above)…"/>
-          <button id="send-btn" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
+          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder="Ask me about pricing, discounts, or quotes…"/>
+          <button id="send-btn" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
         </div>
       </div>
     </section>
 
-    <!-- Results -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
       <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
         <h2 class="text-xl font-semibold mb-4">3) Quote Result</h2>
-        <div id="results" class="space-y-4">
-          <div class="text-slate-400">I’ll show results here after we collect enough info.</div>
-        </div>
+        <div id="results" class="text-slate-400">Results will appear here…</div>
       </div>
-
       <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
         <h2 class="text-xl font-semibold mb-4">4) Deal Narrative</h2>
-        <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Generate after quote.</div>
-        <div class="mt-3 flex gap-2">
-          <button id="export-btn" class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold">Export CSV</button>
-        </div>
+        <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Narrative will appear here…</div>
+        <div class="mt-3"><button id="export-btn" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold">Export CSV</button></div>
       </div>
     </section>
   </div>
 
   <script>
-    // ---------- Helpers
     const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const UI = { file:$('#file-input'), fileInfo:$('#file-info'), preview:$('#data-preview'), chat:$('#chat-history'), freeText:$('#free-text'), send:$('#send-btn'), results:$('#results'), narrative:$('#narrative'), exportBtn:$('#export-btn') };
 
-    const state = {
-      rows: [], headers: [], mapping: {}, parsedOK: false,
-      // agent-collected inputs
-      biz: null, branches: null, tables: null,
-      opt: { inventory:false, iorder:false, kds:false, bundle:false },
-      strategy: null,
-      lastCalc: null,
-      awaiting: null, // which question is active
-    };
+    function addMsg(text,who='assistant'){ const el=document.createElement('div'); el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`; el.textContent=text; UI.chat.appendChild(el); UI.chat.scrollTop=UI.chat.scrollHeight; }
 
-    const UI = {
-      file: $('#file-input'),
-      fileInfo: $('#file-info'),
-      preview: $('#data-preview'),
-      chat: $('#chat-history'),
-      quick: $('#quick-actions'),
-      freeText: $('#free-text'),
-      send: $('#send-btn'),
-      results: $('#results'),
-      narrative: $('#narrative'),
-      exportBtn: $('#export-btn'),
-    };
+    UI.file.addEventListener('change',(e)=>{ const file=e.target.files[0]; if(!file) return; UI.fileInfo.textContent=`Loaded: ${file.name}`; addMsg('📂 Price Book uploaded. You can now chat with ChatGPT Agent about pricing.'); });
 
-    // ---------- Chat primitives
-    function addMsg(text, who='assistant'){ const el = document.createElement('div'); el.className = `chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`; el.textContent = text; UI.chat.appendChild(el); UI.chat.scrollTop = UI.chat.scrollHeight; }
-    function clearQuick(){ UI.quick.innerHTML=''; }
-    function addChip(label, onClick){ const b=document.createElement('button'); b.className='chip'; b.textContent=label; b.onclick=onClick; UI.quick.appendChild(b); }
-
-    // ---------- File upload
-    UI.file.addEventListener('change', (e) => {
-      const file = e.target.files[0]; if(!file) return; UI.fileInfo.textContent = `Processing: ${file.name}…`;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const data = new Uint8Array(ev.target.result);
-        const wb = XLSX.read(data, { type: 'array' });
-        const first = wb.SheetNames[0]; const ws = wb.Sheets[first];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        if (!json.length) { UI.fileInfo.textContent = 'Error: Empty file.'; return; }
-        state.headers = json[0].map(x => (x || '').toString()); state.rows = json.slice(1);
-        renderPreview(json); inferMapping(); state.parsedOK = true; UI.fileInfo.textContent = `Loaded: ${file.name}`;
-        if (!state.biz) askBiz(); else askStrategy();
-      };
-      reader.onerror = () => UI.fileInfo.textContent = 'Error reading file.';
-      reader.readAsArrayBuffer(file);
+    UI.send.addEventListener('click',()=>{ const text=UI.freeText.value.trim(); if(!text) return; addMsg(text,'user'); UI.freeText.value='';
+      // Fake ChatGPT response placeholder
+      setTimeout(()=>{ addMsg('🤖 ChatGPT Agent: Let me process that and calculate a suitable quote for you…'); },500);
     });
 
-    function renderPreview(matrix){
-      const table=document.createElement('table'); table.className='w-full text-sm';
-      const thead=document.createElement('thead'); const trh=document.createElement('tr');
-      for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th);} thead.appendChild(trh); table.appendChild(thead);
-      const tbody=document.createElement('tbody');
-      for(let i=1;i<Math.min(matrix.length,60);i++){ const tr=document.createElement('tr'); for(const cell of matrix[i]){ const td=document.createElement('td'); td.className='px-2 py-1 border border-slate-800'; td.textContent=(cell===undefined||cell===null)?'':cell; tr.appendChild(td);} tbody.appendChild(tr);} table.appendChild(tbody);
-      UI.preview.innerHTML=''; UI.preview.appendChild(table);
-    }
-
-    function inferMapping(){ const H=state.headers.map(h=>h.trim().toLowerCase()); const findCol=(...cans)=>{const i=H.findIndex(h=>cans.some(c=>h.includes(c))); return i>=0?i:-1;}; state.mapping={ bizType:findCol('restaurants sme','business type','retail sme'), compId:findCol('components id'), compName:findCol('components','table per store'), qty:findCol('qty'), mandatory:findCol('mandatory'), unitPrice:findCol('unit price'), remark:findCol('remark') } }
-    function toStr(v){ return (v===undefined||v===null)?'':String(v).trim(); }
-    function num(v){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
-    function rowToObj(row){ const m=state.mapping; return { bizType:toStr(row[m.bizType]), compId:toStr(row[m.compId]), compName:toStr(row[m.compName]), qty:num(row[m.qty])||1, mandatory:toStr(row[m.mandatory]).toUpperCase(), unitPrice:num(row[m.unitPrice]), remark:toStr(row[m.remark]) }; }
-
-    function getCatalog(biz){ const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase())); return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName)); }
-    function pickHQPrice(catalog, branches, biz){ const label=biz==='F&B'?'hq f&b license':'hq retail license'; const cands=catalog.filter(r=>r.compName.toLowerCase().includes(label)); if(!cands.length) return 0; let best=cands[0]; for(const r of cands){ const name=r.compName.toLowerCase(); if(/1-10/.test(name) && branches<=10){best=r;break;} if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;} if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;} if(/more than 30|\b>\s*30|\bmore than/i.test(name) && branches>30){best=r;break;} } return best.unitPrice||0; }
-    function pickImplementationPrice(catalog, branches){ const cands=catalog.filter(r=>/implementation/i.test(r.compName)); if(!cands.length) return 0; let best=cands[0]; for(const r of cands){ const name=r.compName.toLowerCase(); if(/1-10/.test(name) && branches<=10){best=r;break;} if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;} if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;} if(/more than 30|\b>\s*30|\bmore than/i.test(name) && branches>30){best=r;break;} } return best.unitPrice||0; }
-    function findUnit(catalog, keyword){ const row=catalog.find(r=>r.compName.toLowerCase().includes(keyword.toLowerCase())); return row?row.unitPrice||0:0; }
-
-    // Strategy presets
-    const STRATEGIES={ base:{ key:'base', label:'Base (No discount)', notes:'Full list price. Good as a starting anchor before negotiations.', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 }, competitive:{ key:'competitive', label:'Competitive (Win 60%)', notes:'Balanced discounts aimed to win typical competitive bids.', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 }, aggressive:{ key:'aggressive', label:'Aggressive (Win 70%)', notes:'Deeper discounts to close tough deals quickly.', perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25}, bundleOptionalPrice:10000, supportFreeMonths:6 } };
-
-    function applyDiscount(amount, pct){ return Math.max(0, Math.round(amount*(1-pct))); }
-
-    function calculate(){ if(!state.parsedOK){ addMsg('Please upload a price book first.'); return; } const biz=state.biz; const branches=state.branches||1; const catalog=getCatalog(biz==='Retail'?'Retail':'F&B'); const hq=pickHQPrice(catalog, branches, biz==='Retail'?'Retail':'F&B'); const pos=findUnit(catalog,'POS Terminal'); const optionalInv=findUnit(catalog,'Inventory Module'); const optionalIOrder=findUnit(catalog,'iOrder'); const optionalKDS=findUnit(catalog,'KDS'); const supportYear=findUnit(catalog,'Operation Support'); const impl=pickImplementationPrice(catalog, branches);
-      const posTotal=pos*branches; const invTotal=state.opt.inventory?optionalInv*branches:0; const iorderTotal=state.opt.iorder?optionalIOrder*branches:0; const kdsTotal=state.opt.kds?optionalKDS*branches:0; const supportTotal=supportYear*branches;
-      const baseMandatory=hq+posTotal+impl+supportTotal; const baseOptional=invTotal+iorderTotal+kdsTotal; const baseGrand=baseMandatory+baseOptional;
-      const strat=STRATEGIES[state.strategy||'competitive']; const d=strat.perItemDiscount; const hqD=applyDiscount(hq,d.hq??d.default); const posD=applyDiscount(posTotal,d.pos??d.default); const implD=applyDiscount(impl,d.impl??d.default); const supportDiscountPct=d.support??d.default; const freePct=Math.min(1,(strat.supportFreeMonths||0)/12); const supportD=applyDiscount(applyDiscount(supportTotal,supportDiscountPct),freePct);
-      let optD=0; if(state.opt.bundle && strat.bundleOptionalPrice!==null && (invTotal+iorderTotal+kdsTotal)>0){ optD=strat.bundleOptionalPrice; } else { const optPct=d.optional??d.default; optD=applyDiscount(invTotal,optPct)+applyDiscount(iorderTotal,optPct)+applyDiscount(kdsTotal,optPct); }
-      const discountedMandatory=hqD+posD+implD+supportD; const discountedGrand=discountedMandatory+optD;
-      state.lastCalc={ biz, branches, prices:{hq,pos,impl,supportYear,optionalInv,optionalIOrder,optionalKDS}, totals:{ baseMandatory, baseOptional, baseGrand, hqD, posD, implD, supportD, optD, discountedMandatory, discountedGrand }, stratKey:strat.key };
-      renderResults({ baseMandatory, baseOptional, baseGrand, discountedMandatory, optD, discountedGrand, strat });
-      renderNarrative();
-    }
-
-    function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
-
-    function renderResults({ baseMandatory, baseOptional, baseGrand, discountedMandatory, optD, discountedGrand, strat }){ const save=Math.max(0, baseGrand-discountedGrand); const savePct=baseGrand?Math.round(save/baseGrand*100):0; UI.results.innerHTML=`
-        <div class="grid sm:grid-cols-3 gap-3">
-          <div class="bg-slate-900 rounded-xl p-4"><div class="text-slate-400 text-sm">Base (List)</div><div class="text-2xl font-semibold mt-1">฿${fmt(baseGrand)}</div><div class="text-xs text-slate-500 mt-1">Mandatory ฿${fmt(baseMandatory)} • Optional ฿${fmt(baseOptional)}</div></div>
-          <div class="bg-slate-900 rounded-xl p-4"><div class="text-slate-400 text-sm">With Strategy</div><div class="text-2xl font-semibold mt-1">฿${fmt(discountedGrand)}</div><div class="text-xs text-slate-500 mt-1">Mandatory ฿${fmt(discountedMandatory)} • Optional ฿${fmt(optD)}</div></div>
-          <div class="bg-emerald-900/40 border border-emerald-700 rounded-xl p-4"><div class="text-emerald-300 text-sm">Savings (${strat.label})</div><div class="text-2xl font-semibold mt-1">฿${fmt(save)} <span class="text-base align-middle">(${savePct}%)</span></div><div class="text-xs text-emerald-300/80 mt-1">${strat.notes}</div></div>
-        </div>`; }
-
-    function renderNarrative(){ const c=state.lastCalc; if(!c){ UI.narrative.textContent=''; return; } const strat=STRATEGIES[c.stratKey]; const lines=[ `Proposed quote for ${c.biz||'F&B'} — ${c.branches||1} store(s):`, `• Strategy: ${strat.label}.`, `• Base total: ฿${fmt(c.totals.baseGrand)}.`, `• Proposed total: ฿${fmt(c.totals.discountedGrand)} (savings ฿${fmt(Math.max(0, c.totals.baseGrand - c.totals.discountedGrand))}).`, `Mandatory: HQ + POS + Implementation + Support = ฿${fmt(c.totals.hqD + c.totals.posD + c.totals.implD + c.totals.supportD)}.`, `Optional: ฿${fmt(c.totals.optD)}.`, `Notes: ${strat.notes}` ]; UI.narrative.textContent = lines.join('\n'); }
-
-    // ---------- Agent flow
-    function start(){ addMsg('สวัสดีครับ 🙌\nอัปโหลด Price Book (.xlsx/.csv) ด้านซ้ายก่อน แล้วผมจะถามข้อมูลเท่าที่จำเป็นเพื่อคำนวณใบเสนอราคาให้อัตโนมัติ (Base / Competitive / Aggressive).'); state.awaiting='upload'; showUploadHint(); }
-    function showUploadHint(){ clearQuick(); addChip('เลือกไฟล์ตอนนี้', ()=>$('#file-input').click()); }
-
-    function addMsg(text, who='assistant'){ const el=document.createElement('div'); el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`; el.textContent=text; UI.chat.appendChild(el); UI.chat.scrollTop = UI.chat.scrollHeight; }
-
-    function askBiz(){ clearQuick(); addMsg('ประเภทธุรกิจของลูกค้าเป็นแบบไหนครับ?'); ['F&B','Retail'].forEach(v=>addChip(v,()=>answerBiz(v))); state.awaiting='biz'; }
-    function answerBiz(v){ state.biz=v; addMsg(v,'user'); askBranches(); }
-
-    function askBranches(){ clearQuick(); addMsg('มีทั้งหมดกี่สาขาที่ต้องการเสนอราคาครับ?'); [1,2,3,5,10].forEach(n=>addChip(String(n),()=>answerBranches(n))); addChip('กำหนดเอง',()=>{ UI.freeText.placeholder='พิมพ์จำนวนสาขา…'; state.awaiting='branches'; }); }
-    function answerBranches(n){ state.branches=Number(n)||1; addMsg(String(state.branches),'user'); askOptional(); }
-
-    function askOptional(){ clearQuick(); addMsg('ต้องการโมดูลเสริมอะไรบ้างครับ? เลือกได้หลายอย่าง'); const togg=(k,label)=>addChip(label,()=>{ state.opt[k]=!state.opt[k]; addMsg((state.opt[k]?'✓ ':'✕ ')+label,'assistant'); }); togg('inventory','Inventory'); togg('iorder','iOrder'); togg('kds','KDS'); addChip('Bundle Optional @10,000',()=>{ state.opt.bundle=!state.opt.bundle; addMsg((state.opt.bundle?'✓ ':'✕ ')+'Bundle Optional','assistant'); }); addChip('ถัดไป ▶', askStrategy); state.awaiting='optional'; }
-
-    function askStrategy(){ clearQuick(); addMsg('เลือกกลยุทธ์ราคาที่อยากนำเสนอก่อนครับ'); [['Base','base'],['Competitive (Win 60%)','competitive'],['Aggressive (Win 70%)','aggressive']].forEach(([label,key])=>addChip(label,()=>{ state.strategy=key; addMsg(label,'user'); confirmAndCalc(); })); state.awaiting='strategy'; }
-
-    function confirmAndCalc(){ clearQuick(); const items=[ `Business Type: ${state.biz}`, `Branches: ${state.branches}`, `Optional: ${(Object.entries(state.opt).filter(([k,v])=>v && k!=='bundle').map(([k])=>k).join(', ')||'-') + (state.opt.bundle?' + Bundle':'')}`, `Strategy: ${STRATEGIES[state.strategy||'competitive'].label}` ]; addMsg('สรุปข้อมูล:\n- '+items.join('\n- ')); addChip('คำนวณเลย', ()=>{ calculate(); addMsg('คำนวณเรียบร้อย ✅'); afterCalcActions(); }); addChip('แก้ไขกลยุทธ์', askStrategy); addChip('แก้ไข Optional', askOptional); }
-
-    function afterCalcActions(){ clearQuick(); addChip('Export CSV', ()=>UI.exportBtn.click()); addChip('เริ่มใหม่', ()=>{ state.biz=null; state.branches=null; state.tables=null; state.opt={inventory:false,iorder:false,kds:false,bundle:false}; state.strategy=null; state.lastCalc=null; UI.results.innerHTML='<div class="text-slate-400">I’ll show results here after we collect enough info.</div>'; UI.narrative.textContent='Generate after quote.'; askBiz(); }); }
-
-    // Free text handler
-    UI.send.addEventListener('click', ()=>{ const v=UI.freeText.value.trim(); if(!v) return; addMsg(v,'user'); const a=state.awaiting; UI.freeText.value=''; if(a==='branches'){ const n=parseInt(v,10); if(!isFinite(n)||n<=0){ addMsg('กรุณาระบุจำนวนเป็นเลขจำนวนเต็มที่มากกว่า 0'); return; } answerBranches(n); } else { addMsg('เลือกจากตัวเลือกด้านบนเพื่อความรวดเร็วครับ'); } });
-
     // Boot
-    start();
+    addMsg('👋 Hello! Please upload a Price Book file to begin. After that, ask me anything about POS pricing and I’ll generate quotes for you.');
   </script>
 </body>
 </html>
