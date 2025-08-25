@@ -149,14 +149,11 @@
     const sendButton = document.getElementById('send-button');
 
     // --- State Variable ---
-    // This variable will hold the content of the uploaded file.
     let fileContent = null;
 
     // --- API Key Handling ---
-    // This function decodes the Base64 key. It's called only when we need to make an API call.
     function getApiKey() {
         const base64Key = "c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=";
-        // The atob() function decodes a string of data which has been encoded using Base64 encoding.
         return atob(base64Key);
     }
 
@@ -166,18 +163,13 @@
         if (!file) {
             return;
         }
-
-        // Using FileReader to read the file content from the user's computer.
         const reader = new FileReader();
         reader.onload = (e) => {
             fileContent = e.target.result;
             uploadStatus.textContent = `✅ File loaded: ${file.name}`;
             uploadStatus.style.color = 'green';
-            
-            // Enable the chat input now that we have the file content.
             chatInput.disabled = false;
             sendButton.disabled = false;
-            
             addMessageToChat('ai', `Great! I've analyzed the file "${file.name}". What would you like to know?`);
         };
         reader.onerror = () => {
@@ -190,7 +182,7 @@
 
     // --- Chat Logic ---
     chatForm.addEventListener('submit', (event) => {
-        event.preventDefault(); // Prevents the webpage from reloading
+        event.preventDefault();
         const userQuestion = chatInput.value.trim();
 
         if (userQuestion && fileContent) {
@@ -210,7 +202,6 @@
         messageElement.classList.add('message', `${sender}-message`);
         messageElement.textContent = text;
         chatWindow.appendChild(messageElement);
-        // Scroll to the bottom to see the latest message
         chatWindow.scrollTop = chatWindow.scrollHeight;
     }
     
@@ -227,19 +218,15 @@
         return thinkingElement;
     }
 
-
     /**
      * Sends the data to the OpenAI API and gets a response.
      * @param {string} question - The user's question.
      */
     async function getAIResponse(question) {
         const thinkingIndicator = showThinkingIndicator();
-        sendButton.disabled = true; // Disable button while AI is thinking
+        sendButton.disabled = true;
 
-        // --- IMPORTANT: This is the prompt that instructs the AI ---
-        // It tells the AI its role and, most importantly, to ONLY use the data we provide.
         const systemPrompt = `You are an expert sales assistant for a Point-of-Sale (POS) solutions provider. Your ONLY source of information is the document provided by the user. Do not use any external knowledge. If the answer is not in the document, say "I cannot find that information in the provided document." Answer questions concisely based on the following data:`;
-
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
 
         try {
@@ -250,7 +237,7 @@
                     'Authorization': `Bearer ${getApiKey()}`
                 },
                 body: JSON.stringify({
-                    model: 'gpt-3.5-turbo', // You can also use 'gpt-4' if you have access
+                    model: 'gpt-3.5-turbo',
                     messages: [
                         {
                             role: 'system',
@@ -258,7 +245,6 @@
                         },
                         {
                             role: 'user',
-                            // We combine the file content and the user's question into one message.
                             content: `Here is the document:\n\n---\n${fileContent}\n---\n\nNow, please answer this question: ${question}`
                         }
                     ]
@@ -266,22 +252,23 @@
             });
 
             if (!response.ok) {
-                throw new Error(`API error: ${response.statusText}`);
+                const errorData = await response.json();
+                const errorMessage = `API Error: ${errorData.error ? errorData.error.message : 'An unknown error occurred.'}`;
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
             const aiResponse = data.choices[0].message.content;
             
-            // Remove the "Thinking..." indicator and add the real response.
             thinkingIndicator.remove();
             addMessageToChat('ai', aiResponse);
 
         } catch (error) {
             console.error('Error fetching AI response:', error);
             thinkingIndicator.remove();
-            addMessageToChat('ai', 'Sorry, I ran into an error. Please try again.');
+            addMessageToChat('ai', error.message);
         } finally {
-            sendButton.disabled = false; // Re-enable the button
+            sendButton.disabled = false;
         }
     }
 
