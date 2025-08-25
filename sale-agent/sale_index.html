@@ -1,441 +1,290 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sales Estimator — ChatGPT Agent (Direct API, No Proxy)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
-    .chat-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: .75rem; margin-bottom: .5rem; white-space: pre-wrap; word-wrap: break-word; }
-    .chat-bubble-user { background: #2563eb; color: #fff; align-self: flex-end; border-bottom-right-radius: .25rem; }
-    .chat-bubble-assistant { background: #1f2937; color: #e5e7eb; align-self: flex-start; border-bottom-left-radius: .25rem; }
-    .chip { display:inline-flex; align-items:center; gap:.5rem; padding:.4rem .7rem; border-radius:9999px; border:1px solid #334155; background:#0f172a; cursor:pointer; }
-    .chip:hover { background:#111827; }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#0f172a; border:1px solid #334155; border-radius:.5rem; padding:.15rem .35rem; }
-  </style>
-</head>
-<body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8">
-  <div class="mx-auto max-w-7xl">
-    <header class="mb-8">
-      <h1 class="text-3xl md:text-4xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
-      <p class="text-slate-400 mt-2">
-        Upload your price book (.xlsx/.csv), then chat naturally.
-        <span class="text-slate-500">This page calls OpenAI directly (no proxy).</span>
-      </p>
-    </header>
-
-    <!-- Upload & Preview + Agent Chat -->
-    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
-        <h2 class="text-xl font-semibold mb-4">1) Upload Price Book</h2>
-        <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
-          <label class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold cursor-pointer">
-            Browse (.xlsx/.csv)
-            <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden"/>
-          </label>
-          <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
-        </div>
-        <div id="data-preview" class="mt-4 overflow-auto max-h-[420px] bg-slate-900 rounded-xl p-3">
-          <p class="text-slate-500 text-sm">Your data preview will appear here…</p>
-        </div>
-      </div>
-
-      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
-        <h2 class="text-xl font-semibold mb-4">2) Chat with ChatGPT Agent</h2>
-        <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col"></div>
-        <div class="mt-3 flex gap-2">
-          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder='Try: "quote f&b 2 branches + inventory + aggressive"'/>
-          <button id="send-btn" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
-        </div>
-        <div class="mt-3 text-xs text-slate-500">
-          Tip: you can say <span class="kbd">retail 5 stores base</span>, <span class="kbd">f&b 3 branches bundle</span>, or <span class="kbd">win 70%</span> (aggressive).
-        </div>
-      </div>
-    </section>
-
-    <!-- Results -->
-    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
-        <h2 class="text-xl font-semibold mb-4">3) Quote Result</h2>
-        <div id="results" class="space-y-4">
-          <div class="text-slate-400">I’ll show results here after your first request.</div>
-        </div>
-      </div>
-
-      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
-        <h2 class="text-xl font-semibold mb-4">4) Deal Narrative</h2>
-        <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Generate after quote.</div>
-        <div class="mt-3 flex gap-2">
-          <button id="export-btn" class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold">Export CSV</button>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <script>
-    // ===================== OpenAI (Direct) — Demo Style =====================
-    // WARNING: Embedding keys in client code exposes them to users (demo only).
-    // You asked to follow the style that does not use a proxy; so we decode here.
-    function decodeKey(b64){ try { return atob(b64).trim(); } catch { return ""; } }
-    const OPENAI_KEY = decodeKey("c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=");
-
-    async function openaiChat(messages, {temperature=0.2, model="gpt-4o-mini"} = {}){
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_KEY}`
-        },
-        body: JSON.stringify({ model, temperature, messages })
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(()=> "");
-        throw new Error("OpenAI error: " + t);
-      }
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content ?? "";
-    }
-
-    async function openaiJSON(system, user, {model="gpt-4o-mini"} = {}){
-      // Ask the model to return STRICT JSON (no comments, no markdown)
-      const txt = await openaiChat(
-        [
-          { role: "system", content: system },
-          { role: "user", content: user }
-        ],
-        { temperature: 0.1, model }
-      );
-      // Strip code fences if present
-      const cleaned = txt.trim()
-        .replace(/^```json/i, "")
-        .replace(/^```/, "")
-        .replace(/```$/, "")
-        .trim();
-      try { return JSON.parse(cleaned); } catch (e) {
-        // Best-effort fallback: try to extract {...}
-        const m = cleaned.match(/\{[\s\S]*\}$/);
-        if (m) { try { return JSON.parse(m[0]); } catch {} }
-        throw new Error("Failed to parse JSON from model: " + cleaned);
-      }
-    }
-
-    // ===================== UI & State =====================
-    const $ = (sel) => document.querySelector(sel);
-    const state = {
-      rows: [], headers: [], mapping: {}, parsedOK: false,
-      lastCalc: null,
-    };
-    const UI = {
-      file: $('#file-input'), fileInfo: $('#file-info'), preview: $('#data-preview'),
-      chat: $('#chat-history'), freeText: $('#free-text'), send: $('#send-btn'),
-      results: $('#results'), narrative: $('#narrative'), exportBtn: $('#export-btn'),
-    };
-
-    function addMsg(text, who='assistant'){
-      const el=document.createElement('div');
-      el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
-      el.textContent=text;
-      UI.chat.appendChild(el);
-      UI.chat.scrollTop = UI.chat.scrollHeight;
-    }
-
-    // ===================== Upload & Preview =====================
-    UI.file.addEventListener('change', (e) => {
-      const file = e.target.files[0]; if (!file) return;
-      UI.fileInfo.textContent = `Processing: ${file.name}…`;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const data = new Uint8Array(ev.target.result);
-        const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const matrix = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        if (!matrix.length) { UI.fileInfo.textContent = 'Error: Empty file.'; return; }
-        state.headers = matrix[0].map(x => (x || '').toString());
-        state.rows = matrix.slice(1);
-        renderPreview(matrix);
-        inferMapping();
-        state.parsedOK = true;
-        UI.fileInfo.textContent = `Loaded: ${file.name}`;
-        addMsg('📘 Price book loaded. Type your request, e.g. "quote f&b 2 branches + inventory + aggressive"');
-      };
-      reader.onerror = () => UI.fileInfo.textContent = 'Error reading file.';
-      reader.readAsArrayBuffer(file);
-    });
-
-    function renderPreview(matrix){
-      const table=document.createElement('table'); table.className='w-full text-sm';
-      const thead=document.createElement('thead'); const trh=document.createElement('tr');
-      for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th); }
-      thead.appendChild(trh); table.appendChild(thead);
-      const tbody=document.createElement('tbody');
-      for(let i=1;i<Math.min(matrix.length,60);i++){
-        const tr=document.createElement('tr');
-        for(const cell of matrix[i]){
-          const td=document.createElement('td'); td.className='px-2 py-1 border border-slate-800'; td.textContent=(cell==null)?'':cell; tr.appendChild(td);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI POS Sales Assistant</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
-        tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);
-      UI.preview.innerHTML=''; UI.preview.appendChild(table);
+        .container {
+            width: 100%;
+            max-width: 700px;
+            height: 90vh;
+            max-height: 800px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 16px 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .upload-section {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+        }
+        .upload-section label {
+            font-weight: 500;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .upload-section input[type="file"] {
+            border: 1px solid #ccc;
+            padding: 8px;
+            border-radius: 6px;
+            width: 80%;
+        }
+        #upload-status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+            min-height: 20px;
+        }
+        .chat-window {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        .user-message {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .ai-message {
+            background-color: #e9e9eb;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .thinking {
+            font-style: italic;
+            color: #888;
+        }
+        .chat-input-form {
+            display: flex;
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        #chat-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 1rem;
+        }
+        #send-button {
+            border: none;
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+        #send-button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>AI POS Sales Assistant</header>
+    
+    <div class="upload-section">
+        <label for="file-upload">1. Upload your Product & Price Information File (.txt, .csv, .md)</label>
+        <input type="file" id="file-upload" accept=".txt,.csv,.md,.json">
+        <p id="upload-status">No file uploaded yet.</p>
+    </div>
+
+    <div class="chat-window" id="chat-window">
+        <div class="message ai-message">
+            Hello! Please upload a file above. Once it's loaded, you can ask me questions about it.
+        </div>
+    </div>
+
+    <form class="chat-input-form" id="chat-form">
+        <input type="text" id="chat-input" placeholder="Ask a question about the file..." disabled>
+        <button type="submit" id="send-button" disabled>Send</button>
+    </form>
+</div>
+
+<script>
+    // --- DOM Element References ---
+    const fileUpload = document.getElementById('file-upload');
+    const uploadStatus = document.getElementById('upload-status');
+    const chatWindow = document.getElementById('chat-window');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const sendButton = document.getElementById('send-button');
+
+    // --- State Variable ---
+    // This variable will hold the content of the uploaded file.
+    let fileContent = null;
+
+    // --- API Key Handling ---
+    // This function decodes the Base64 key. It's called only when we need to make an API call.
+    function getApiKey() {
+        const base64Key = "c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=";
+        // The atob() function decodes a string of data which has been encoded using Base64 encoding.
+        return atob(base64Key);
     }
 
-    // ===================== Column Inference & Catalog =====================
-    function inferMapping(){
-      const H = state.headers.map(h => h.trim().toLowerCase());
-      const findCol=(...cands)=>{ const i=H.findIndex(h=>cands.some(c=>h.includes(c))); return i>=0?i:-1; };
-      state.mapping = {
-        bizType: findCol('restaurants sme','business type','retail sme'),
-        compId: findCol('components id'),
-        compName: findCol('components','table per store'),
-        qty: findCol('qty'),
-        mandatory: findCol('mandatory'),
-        unitPrice: findCol('unit price'),
-        remark: findCol('remark'),
-      };
-    }
-    function toStr(v){ return (v==null)?'':String(v).trim(); }
-    function num(v){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
-    function rowToObj(row){
-      const m=state.mapping;
-      return {
-        bizType:toStr(row[m.bizType]),
-        compId:toStr(row[m.compId]),
-        compName:toStr(row[m.compName]),
-        qty:num(row[m.qty])||1,
-        mandatory:toStr(row[m.mandatory]).toUpperCase(),
-        unitPrice:num(row[m.unitPrice]),
-        remark:toStr(row[m.remark]),
-      };
-    }
-    function getCatalog(biz){
-      const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
-      return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName));
-    }
-    function pickHQPrice(catalog, branches, biz){
-      const label = biz==='Retail' ? 'hq retail license' : 'hq f&b license';
-      const cands = catalog.filter(r => r.compName.toLowerCase().includes(label));
-      if(!cands.length) return 0;
-      let best=cands[0];
-      for(const r of cands){
-        const name=r.compName.toLowerCase();
-        if(/1-10/.test(name) && branches<=10){ best=r; break; }
-        if(/11-20/.test(name) && branches>=11&&branches<=20){ best=r; break; }
-        if(/21-30/.test(name) && branches>=21&&branches<=30){ best=r; break; }
-        if(/more than 30|\b>\s*30|\bmore than/.test(name) && branches>30){ best=r; break; }
-      }
-      return best.unitPrice||0;
-    }
-    function pickImplementationPrice(catalog, branches){
-      const cands = catalog.filter(r=>/implementation/i.test(r.compName));
-      if(!cands.length) return 0;
-      let best=cands[0];
-      for(const r of cands){
-        const name=r.compName.toLowerCase();
-        if(/1-10/.test(name) && branches<=10){ best=r; break; }
-        if(/11-20/.test(name) && branches>=11&&branches<=20){ best=r; break; }
-        if(/21-30/.test(name) && branches>=21&&branches<=30){ best=r; break; }
-        if(/more than 30|\b>\s*30|\bmore than/.test(name) && branches>30){ best=r; break; }
-      }
-      return best.unitPrice||0;
-    }
-    function findUnit(catalog, keyword){
-      const row=catalog.find(r=>r.compName.toLowerCase().includes(keyword.toLowerCase()));
-      return row ? (row.unitPrice||0) : 0;
-    }
+    // --- File Upload Logic ---
+    fileUpload.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
 
-    // ===================== Pricing Strategies & Calculator =====================
-    const STRATEGIES = {
-      base: { key:'base', label:'Base (No discount)', notes:'List price before negotiation.', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 },
-      competitive: { key:'competitive', label:'Competitive (Win 60%)', notes:'Balanced discount to win most bids.', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 },
-      aggressive: { key:'aggressive', label:'Aggressive (Win 70%)', notes:'Deeper discount to close tough deals fast.', perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25}, bundleOptionalPrice:10000, supportFreeMonths:6 },
-    };
-    function applyDiscount(amount, pct){ return Math.max(0, Math.round(amount*(1-pct))); }
-
-    function calculate({biz='F&B', branches=1, optional={}, strategy='competitive'}){
-      const catalog = getCatalog(biz==='Retail'?'Retail':'F&B');
-      const hq = pickHQPrice(catalog, branches, biz);
-      const pos = findUnit(catalog, 'POS Terminal');
-      const invU = findUnit(catalog, 'Inventory Module');
-      const ioU  = findUnit(catalog, 'iOrder');
-      const kdsU = findUnit(catalog, 'KDS');
-      const supportU = findUnit(catalog, 'Operation Support');
-      const impl = pickImplementationPrice(catalog, branches);
-
-      const posTotal = pos * branches;
-      const invTotal = optional.inventory ? invU * branches : 0;
-      const ioTotal  = optional.iorder ? ioU * branches : 0;
-      const kdsTotal = optional.kds ? kdsU * branches : 0;
-      const supportTotal = supportU * branches;
-
-      const baseMandatory = hq + posTotal + impl + supportTotal;
-      const baseOptional  = invTotal + ioTotal + kdsTotal;
-      const baseGrand     = baseMandatory + baseOptional;
-
-      const strat = STRATEGIES[strategy] || STRATEGIES.competitive; const d=strat.perItemDiscount;
-      const hqD=applyDiscount(hq, d.hq ?? d.default);
-      const posD=applyDiscount(posTotal, d.pos ?? d.default);
-      const implD=applyDiscount(impl, d.impl ?? d.default);
-      const freePct=Math.min(1,(strat.supportFreeMonths||0)/12);
-      const supportD=applyDiscount(applyDiscount(supportTotal, d.support ?? d.default), freePct);
-
-      let optD=0;
-      if (optional.bundle && strat.bundleOptionalPrice!==null && (invTotal+ioTotal+kdsTotal)>0) {
-        optD = strat.bundleOptionalPrice;
-      } else {
-        const p=d.optional ?? d.default;
-        optD = applyDiscount(invTotal,p) + applyDiscount(ioTotal,p) + applyDiscount(kdsTotal,p);
-      }
-
-      const discountedMandatory = hqD + posD + implD + supportD;
-      const discountedGrand = discountedMandatory + optD;
-
-      state.lastCalc = { biz, branches, strategy: strat.label, baseMandatory, baseOptional, baseGrand, discountedMandatory, optD, discountedGrand };
-      renderResults(); renderNarrative();
-    }
-
-    function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
-    function renderResults(){
-      const c=state.lastCalc; if(!c){ UI.results.textContent=''; return; }
-      const save=Math.max(0,c.baseGrand-c.discountedGrand);
-      const savePct=c.baseGrand?Math.round(save/c.baseGrand*100):0;
-      UI.results.innerHTML = `
-        <div class="grid sm:grid-cols-3 gap-3">
-          <div class="bg-slate-900 rounded-xl p-4">
-            <div class="text-slate-400 text-sm">Base (List)</div>
-            <div class="text-2xl font-semibold mt-1">฿${fmt(c.baseGrand)}</div>
-            <div class="text-xs text-slate-500 mt-1">Mandatory ฿${fmt(c.baseMandatory)} • Optional ฿${fmt(c.baseOptional)}</div>
-          </div>
-          <div class="bg-slate-900 rounded-xl p-4">
-            <div class="text-slate-400 text-sm">With Strategy</div>
-            <div class="text-2xl font-semibold mt-1">฿${fmt(c.discountedGrand)}</div>
-            <div class="text-xs text-slate-500 mt-1">Mandatory ฿${fmt(c.discountedMandatory)} • Optional ฿${fmt(c.optD)}</div>
-          </div>
-          <div class="bg-emerald-900/40 border border-emerald-700 rounded-xl p-4">
-            <div class="text-emerald-300 text-sm">Savings</div>
-            <div class="text-2xl font-semibold mt-1">฿${fmt(save)} <span class="text-base align-middle">(${savePct}%)</span></div>
-            <div class="text-xs text-emerald-300/80 mt-1">${c.strategy}</div>
-          </div>
-        </div>`;
-    }
-    function renderNarrative(){
-      const c=state.lastCalc; if(!c){ UI.narrative.textContent=''; return; }
-      UI.narrative.textContent = [
-        `Proposed quote — ${c.strategy}`,
-        `• Base total: ฿${fmt(c.baseGrand)}`,
-        `• Proposed total: ฿${fmt(c.discountedGrand)} (savings ฿${fmt(Math.max(0,c.baseGrand-c.discountedGrand))})`,
-        `• Mandatory vs Optional: ฿${fmt(c.baseMandatory)} / ฿${fmt(c.baseOptional)}`
-      ].join('\n');
-    }
-
-    // ===================== Intent Parsing & Narrative (OpenAI) =====================
-    async function parseIntent(userText){
-      const system = `
-You are a pricing assistant for a POS solution. Extract STRICT JSON from the user's message (no extra text):
-{
-  "biz": "F&B" | "Retail",
-  "branches": number,             // >0
-  "optional": { "inventory": boolean, "iorder": boolean, "kds": boolean, "bundle": boolean },
-  "strategy": "base" | "competitive" | "aggressive"
-}
-Defaults if omitted: biz="F&B", branches=1, optional all false, strategy="competitive".
-If user mentions “win 70” => aggressive; mentions “base” => base.
-“bundle” or “pack” => optional.bundle=true.
-Return ONLY JSON.`;
-      const data = await openaiJSON(system, userText);
-      // Normalize
-      return {
-        biz: (data.biz === "Retail") ? "Retail" : "F&B",
-        branches: Number.isFinite(+data.branches) && +data.branches > 0 ? +data.branches : 1,
-        optional: {
-          inventory: !!data?.optional?.inventory,
-          iorder: !!data?.optional?.iorder,
-          kds: !!data?.optional?.kds,
-          bundle: !!data?.optional?.bundle,
-        },
-        strategy: ["base","competitive","aggressive"].includes(data.strategy) ? data.strategy : "competitive",
-      };
-    }
-
-    async function writeNarrative(context){
-      const system = "You write concise, sales-ready deal narratives in Thai. Keep it short and clear.";
-      const user = `สรุปข้อเสนอราคา:
-- ประเภทธุรกิจ: ${context.biz}
-- จำนวนสาขา: ${context.branches}
-- กลยุทธ์: ${context.strategy}
-- ราคารวมก่อนส่วนลด: ${context.baseGrand}
-- ราคารวมเสนอ: ${context.discountedGrand}
-- Mandatory: ${context.baseMandatory} -> ${context.discountedMandatory}
-- Optional (สุทธิ): ${context.optD}
-ช่วยเขียนสรุปกระชับพร้อมประโยชน์ลูกค้า และระบุจำนวนเงินที่ประหยัดรวม (base - proposed).`;
-      return openaiChat(
-        [{ role:"system", content: system }, { role:"user", content: user }],
-        { temperature: 0.4 }
-      );
-    }
-
-    // ===================== Chat Handler =====================
-    UI.send.addEventListener('click', async () => {
-      const text = UI.freeText.value.trim();
-      if (!text) return;
-      addMsg(text, 'user'); UI.freeText.value='';
-      if (!state.parsedOK) { addMsg('❗ Please upload a Price Book first.'); return; }
-
-      try {
-        addMsg('🤖 Parsing your request…');
-        const params = await parseIntent(text);
-
-        // Compute using uploaded pricebook
-        calculate(params);
-        const c = state.lastCalc;
-
-        // Ask model to craft narrative from totals
-        addMsg('📝 Drafting deal narrative…');
-        const nar = await writeNarrative({
-          biz: params.biz,
-          branches: params.branches,
-          strategy: params.strategy,
-          baseGrand: c.baseGrand,
-          discountedGrand: c.discountedGrand,
-          baseMandatory: c.baseMandatory,
-          baseOptional: c.baseOptional,
-          discountedMandatory: c.discountedMandatory,
-          optD: c.optD
-        });
-        UI.narrative.textContent = nar || UI.narrative.textContent;
-        addMsg('✅ Quote generated.', 'assistant');
-
-      } catch (err) {
-        console.error(err);
-        addMsg('❗ OpenAI call failed. Check network and API key.', 'assistant');
-      }
+        // Using FileReader to read the file content from the user's computer.
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            fileContent = e.target.result;
+            uploadStatus.textContent = `✅ File loaded: ${file.name}`;
+            uploadStatus.style.color = 'green';
+            
+            // Enable the chat input now that we have the file content.
+            chatInput.disabled = false;
+            sendButton.disabled = false;
+            
+            addMessageToChat('ai', `Great! I've analyzed the file "${file.name}". What would you like to know?`);
+        };
+        reader.onerror = () => {
+            uploadStatus.textContent = '❌ Error reading file.';
+            uploadStatus.style.color = 'red';
+            fileContent = null;
+        };
+        reader.readAsText(file);
     });
 
-    // ===================== Export CSV =====================
-    UI.exportBtn.addEventListener('click', () => {
-      const c = state.lastCalc; if (!c) { addMsg('Please compute a quote first.'); return; }
-      const rows = [
-        ['Item','Amount (THB)'],
-        ['Base — Mandatory', c.baseMandatory],
-        ['Base — Optional', c.baseOptional],
-        ['Base — Grand', c.baseGrand],
-        ['Proposed — Mandatory', c.discountedMandatory],
-        ['Proposed — Optional', c.optD],
-        ['Proposed — Grand', c.discountedGrand],
-      ];
-      const csv = rows.map(r => r.map(v => typeof v==='number' ? v : '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'quote.csv'; a.click();
-      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    // --- Chat Logic ---
+    chatForm.addEventListener('submit', (event) => {
+        event.preventDefault(); // Prevents the webpage from reloading
+        const userQuestion = chatInput.value.trim();
+
+        if (userQuestion && fileContent) {
+            addMessageToChat('user', userQuestion);
+            chatInput.value = '';
+            getAIResponse(userQuestion);
+        }
     });
 
-    // ===================== Welcome =====================
-    addMsg('🤖 ChatGPT Agent ready — Upload your Price Book on the left, then type a request in natural language. (Direct API mode; no proxy.)');
-  </script>
+    /**
+     * Adds a message to the chat window UI.
+     * @param {string} sender - Who sent the message ('user' or 'ai').
+     * @param {string} text - The message content.
+     */
+    function addMessageToChat(sender, text) {
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message', `${sender}-message`);
+        messageElement.textContent = text;
+        chatWindow.appendChild(messageElement);
+        // Scroll to the bottom to see the latest message
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+    
+    /**
+     * Shows a "thinking..." indicator in the chat.
+     * @returns {HTMLElement} The indicator element, so we can remove it later.
+     */
+    function showThinkingIndicator() {
+        const thinkingElement = document.createElement('div');
+        thinkingElement.classList.add('message', 'ai-message', 'thinking');
+        thinkingElement.textContent = 'Thinking...';
+        chatWindow.appendChild(thinkingElement);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+        return thinkingElement;
+    }
+
+
+    /**
+     * Sends the data to the OpenAI API and gets a response.
+     * @param {string} question - The user's question.
+     */
+    async function getAIResponse(question) {
+        const thinkingIndicator = showThinkingIndicator();
+        sendButton.disabled = true; // Disable button while AI is thinking
+
+        // --- IMPORTANT: This is the prompt that instructs the AI ---
+        // It tells the AI its role and, most importantly, to ONLY use the data we provide.
+        const systemPrompt = `You are an expert sales assistant for a Point-of-Sale (POS) solutions provider. Your ONLY source of information is the document provided by the user. Do not use any external knowledge. If the answer is not in the document, say "I cannot find that information in the provided document." Answer questions concisely based on the following data:`;
+
+        const apiUrl = 'https://api.openai.com/v1/chat/completions';
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getApiKey()}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-3.5-turbo', // You can also use 'gpt-4' if you have access
+                    messages: [
+                        {
+                            role: 'system',
+                            content: systemPrompt
+                        },
+                        {
+                            role: 'user',
+                            // We combine the file content and the user's question into one message.
+                            content: `Here is the document:\n\n---\n${fileContent}\n---\n\nNow, please answer this question: ${question}`
+                        }
+                    ]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const aiResponse = data.choices[0].message.content;
+            
+            // Remove the "Thinking..." indicator and add the real response.
+            thinkingIndicator.remove();
+            addMessageToChat('ai', aiResponse);
+
+        } catch (error) {
+            console.error('Error fetching AI response:', error);
+            thinkingIndicator.remove();
+            addMessageToChat('ai', 'Sorry, I ran into an error. Please try again.');
+        } finally {
+            sendButton.disabled = false; // Re-enable the button
+        }
+    }
+
+</script>
 </body>
 </html>
