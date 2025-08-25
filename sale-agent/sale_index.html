@@ -17,7 +17,7 @@
   <div class="mx-auto max-w-6xl">
     <header class="mb-8">
       <h1 class="text-3xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
-      <p class="text-slate-400 mt-2">Powered by ChatGPT Agent. Upload your price book and start chatting right away.</p>
+      <p class="text-slate-400 mt-2">Powered by ChatGPT Agent with OpenAI API. Upload your price book and chat right away.</p>
     </header>
 
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -62,14 +62,28 @@
 
     function addMsg(text,who='assistant'){ const el=document.createElement('div'); el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`; el.textContent=text; UI.chat.appendChild(el); UI.chat.scrollTop=UI.chat.scrollHeight; }
 
+    // decode API key from base64
+    function decodeKey(b64){ try{ return atob(b64); }catch(e){ return ''; } }
+    const OPENAI_KEY = decodeKey("c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=");
+
+    async function chatWithGPT(message){
+      const res = await fetch("https://api.openai.com/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${OPENAI_KEY}`},
+        body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"system",content:"You are a helpful sales assistant for POS pricing."},{role:"user",content:message}]})
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || "(No response)";
+    }
+
     UI.file.addEventListener('change',(e)=>{ const file=e.target.files[0]; if(!file) return; UI.fileInfo.textContent=`Loaded: ${file.name}`; addMsg('📂 Price Book uploaded. You can now chat with ChatGPT Agent about pricing.'); });
 
-    UI.send.addEventListener('click',()=>{ const text=UI.freeText.value.trim(); if(!text) return; addMsg(text,'user'); UI.freeText.value='';
-      // Fake ChatGPT response placeholder
-      setTimeout(()=>{ addMsg('🤖 ChatGPT Agent: Let me process that and calculate a suitable quote for you…'); },500);
+    UI.send.addEventListener('click',async()=>{ const text=UI.freeText.value.trim(); if(!text) return; addMsg(text,'user'); UI.freeText.value='';
+      addMsg('🤖 Processing with ChatGPT…');
+      const reply = await chatWithGPT(text);
+      addMsg(reply,'assistant');
     });
 
-    // Boot
     addMsg('👋 Hello! Please upload a Price Book file to begin. After that, ask me anything about POS pricing and I’ll generate quotes for you.');
   </script>
 </body>
