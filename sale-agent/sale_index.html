@@ -1,427 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOLmate - AI Data Analyzer</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #111827; /* Dark blue-gray background */
-            color: #d1d5db; /* Light gray text */
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1f2937; }
-        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-
-        /* Spinner */
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #3b82f6; /* Blue */
-            width: 24px;
-            height: 24px;
-            animation: spin 1s ease-in-out infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Table styling for both data preview and generated table */
-        .data-table-container table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .data-table-container th, .data-table-container td {
-            border: 1px solid #374151;
-            padding: 8px 12px;
-            text-align: left;
-            font-size: 0.875rem;
-        }
-        .data-table-container th {
-            background-color: #1f2937;
-            font-weight: 600;
-        }
-        .data-table-container tr:nth-child(even) {
-            background-color: #1f2937;
-        }
-        
-        /* Chat bubble styling */
-        .chat-bubble {
-            max-width: 90%; /* Adjusted for button */
-            padding: 0.75rem 1rem;
-            border-radius: 0.75rem;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .chat-bubble-user {
-            background-color: #3b82f6; color: white;
-            align-self: flex-end; border-bottom-right-radius: 0.25rem;
-        }
-        .chat-bubble-assistant {
-            background-color: #374151; color: #d1d5db;
-            align-self: flex-start; border-bottom-left-radius: 0.25rem;
-        }
-        /* NEW: Container for assistant message + action button */
-        .assistant-message-container {
-            display: flex;
-            align-items: flex-end;
-            gap: 0.5rem;
-            max-width: 85%;
-            align-self: flex-start;
-        }
-        
-        /* AI Selector */
-        .ai-selector img {
-            width: 40px; height: 40px; cursor: pointer; border-radius: 50%;
-            border: 2px solid transparent; transition: all 0.2s ease-in-out; opacity: 0.5;
-        }
-        .ai-selector img:hover { opacity: 0.8; }
-        .ai-selector img.active {
-            opacity: 1; border-color: #60a5fa; box-shadow: 0 0 15px rgba(96, 165, 250, 0.6);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Estimator — ChatGPT Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- PDF export helper -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-YcsIPb5VZ9x2hX3o8rW3h5S3iGf1yQbJQfT8CwQZqkzKf2Wc+oQmQeQdQkOY1ddo5rI4sQqg24dGQKSaX3k9xA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .chat-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: .75rem; margin-bottom: .5rem; white-space: pre-wrap; word-wrap: break-word; }
+    .chat-bubble-user { background: #2563eb; color: #fff; align-self: flex-end; border-bottom-right-radius: .25rem; }
+    .chat-bubble-assistant { background: #1f2937; color: #e5e7eb; align-self: flex-start; border-bottom-left-radius: .25rem; }
+    .quote-table th, .quote-table td { border-bottom: 1px solid #334155; padding: .5rem .75rem; }
+    .quote-table th { background: #0f172a; color: #cbd5e1; text-align: left; }
+  </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8">
+  <div class="mx-auto max-w-6xl">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
+      <p class="text-slate-400 mt-2">Powered by ChatGPT Agent with OpenAI API. Upload your price book and chat right away.</p>
+    </header>
 
-    <nav class="bg-gray-800/50 backdrop-blur-sm rounded-lg p-4 mb-8 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-white">SOLmate</h1>
-        <div>
-            <a href="#" class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">API Log Analyzer</a>
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
+        <h2 class="text-xl font-semibold mb-4">1) Upload Price Book</h2>
+        <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
+          <label class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold cursor-pointer">
+            Browse (.xlsx/.csv)
+            <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" />
+          </label>
+          <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
         </div>
-    </nav>
+        <div id="data-preview" class="mt-4 overflow-auto max-h-[400px] bg-slate-900 rounded-xl p-3 text-slate-400 text-sm">Preview will appear here…</div>
+      </div>
 
-    <div class="container mx-auto max-w-7xl">
-        
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white">SOLmate</h1>
-            <p class="mt-2 text-lg text-gray-400">The AI Tools that help the team analyze data and prompt suggest make the work more efficient and faster.</p>
-        </header>
-
-        <div id="upload-section" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
-            <h2 class="text-xl font-semibold text-white mb-4">1. Upload Your Data File</h2>
-            <div class="flex justify-center items-center border-2 border-dashed border-gray-600 rounded-lg p-8">
-                <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 cursor-pointer">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    Browse for File (.csv, .xlsx)
-                    <input type="file" id="file-input" class="hidden" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-                </label>
-            </div>
-            <div id="file-info" class="text-center mt-4 text-gray-400">No file selected.</div>
+      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
+        <h2 class="text-xl font-semibold mb-4">2) Chat with ChatGPT Agent</h2>
+        <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col text-sm"></div>
+        <div class="mt-3 flex gap-2">
+          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder="Ask me about pricing, discounts, or quotes…"/>
+          <button id="send-btn" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
         </div>
+      </div>
+    </section>
 
-        <div id="main-content" class="grid grid-cols-1 lg:grid-cols-2 gap-8 hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-semibold text-white mb-4">2. Data Preview</h2>
-                <div id="data-preview" class="overflow-auto max-h-[600px] bg-gray-900 rounded-md p-2 data-table-container">
-                    <p class="text-gray-500">Your data will be displayed here...</p>
-                </div>
-            </div>
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <!-- Results / Assistant Narrative -->
+      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
+        <h2 class="text-xl font-semibold mb-4">3) AI Answer</h2>
+        <div id="results" class="text-slate-300">Results will appear here…</div>
+      </div>
 
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col h-[700px]">
-                <h2 class="text-xl font-semibold text-white mb-4">3. Ask the AI Assistant</h2>
-                <div class="ai-selector flex justify-center gap-4 mb-4">
-                    <img id="gemini-selector" src="https://static.vecteezy.com/system/resources/thumbnails/055/687/063/small/circle-gemini-google-icon-symbol-logo-free-png.png" alt="Gemini" class="active" title="Use Gemini">
-                    <img id="chatgpt-selector" src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/2048px-ChatGPT_logo.svg.png" alt="ChatGPT" title="Use ChatGPT">
-                </div>
-                <div id="chat-history" class="flex-grow overflow-y-auto mb-4 p-4 bg-gray-900 rounded-lg flex flex-col">
-                    <div class="assistant-message-container">
-                        <div class="chat-bubble chat-bubble-assistant">Hello! Once your data is loaded, ask me anything about it. For example: "Create a budget based on the top 5 most expensive items."</div>
-                    </div>
-                </div>
-                <div id="chat-input-area" class="flex gap-4">
-                    <input type="text" id="ai-question" class="flex-grow bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Type your question here..." disabled>
-                    <button id="ask-ai-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
-                        <span id="btn-text">Ask AI</span>
-                        <div id="btn-spinner" class="spinner hidden"></div>
-                    </button>
-                </div>
-            </div>
+      <!-- Deal Narrative -->
+      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
+        <h2 class="text-xl font-semibold mb-4">4) Deal Narrative</h2>
+        <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Narrative will appear here…</div>
+      </div>
+    </section>
+
+    <!-- NEW: Customer Quote (table + exports) -->
+    <section class="mt-6 bg-slate-800 rounded-2xl p-6 shadow">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">5) Customer Quote (Auto-generated)</h2>
+        <div class="flex gap-2">
+          <button id="export-quote-csv" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold">Export CSV</button>
+          <button id="export-quote-pdf" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold">Export PDF</button>
         </div>
+      </div>
+      <div id="quote-meta" class="text-sm text-slate-400 mb-3">Quote will be generated after each AI answer.</div>
+      <div id="quote-table-wrap" class="bg-slate-900 rounded-xl p-4 overflow-auto">
+        <!-- Table goes here -->
+        <div class="text-slate-500 text-sm">No quote yet.</div>
+      </div>
+    </section>
+  </div>
 
-        <div id="export-section" class="bg-gray-800 p-6 rounded-lg shadow-lg mt-8 hidden">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-white">4. Generated Table & Export</h2>
-                <button id="export-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2 disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
-                    Export to Excel
-                </button>
-            </div>
-            <div id="generated-table-container" class="overflow-auto max-h-[400px] bg-gray-900 rounded-md p-2 data-table-container">
-                <p class="text-gray-500">Click a "Generate Table" button in the chat to populate this area.</p>
-            </div>
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const UI = {
+      file:$('#file-input'),
+      fileInfo:$('#file-info'),
+      preview:$('#data-preview'),
+      chat:$('#chat-history'),
+      freeText:$('#free-text'),
+      send:$('#send-btn'),
+      results:$('#results'),
+      narrative:$('#narrative'),
+      exportBtn:$('#export-btn'), // (legacy button in your layout)
+      quoteMeta:$('#quote-meta'),
+      quoteWrap:$('#quote-table-wrap'),
+      exportQuoteCSV:$('#export-quote-csv'),
+      exportQuotePDF:$('#export-quote-pdf'),
+    };
+
+    function addMsg(text,who='assistant'){
+      const el=document.createElement('div');
+      el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
+      el.textContent=text;
+      UI.chat.appendChild(el);
+      UI.chat.scrollTop=UI.chat.scrollHeight;
+    }
+
+    // decode API key from base64 (⚠️ visible to anyone viewing source)
+    function decodeKey(b64){ try{ return atob(b64); }catch(e){ return ''; } }
+    const OPENAI_KEY = decodeKey("c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=");
+
+    async function chatWithGPT(message){
+      const res = await fetch("https://api.openai.com/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${OPENAI_KEY}`},
+        body:JSON.stringify({
+          model:"gpt-4o-mini",
+          messages:[
+            {role:"system",content:"You are a helpful sales assistant for POS pricing. You can also help generate structured quotes."},
+            {role:"user",content:message}
+          ]
+        })
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || "(No response)";
+    }
+
+    // Strict JSON quote generator — called after every AI answer
+    async function generateQuoteJSON(contextText){
+      const sys = `You are a quoting engine. Return ONLY strict JSON (no code fences) with this schema:
+{
+  "quoteId": string,
+  "customer": { "name": string|null, "businessType": "F&B"|"Retail"|null, "branches": number|null },
+  "currency": "THB"|"USD"|"EUR",
+  "items": [
+    { "name": string, "qty": number, "unit": number, "total": number, "category": "Mandatory"|"Optional" }
+  ],
+  "discounts": [
+    { "label": string, "amount": number }
+  ],
+  "subtotal": number,
+  "grandTotal": number,
+  "notes": string
+}
+- Ensure totals are arithmetically correct: subtotal = sum(items.total), grandTotal = subtotal - sum(discounts.amount).
+- If any field missing, infer from context (e.g., currency THB).
+- Keep numbers as plain numbers (no commas).`;
+      const user = `Context from assistant & user:
+${contextText}
+
+Produce the JSON quote now.`;
+      const res = await fetch("https://api.openai.com/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${OPENAI_KEY}`},
+        body:JSON.stringify({
+          model:"gpt-4o-mini",
+          temperature:0.2,
+          messages:[{role:"system",content:sys},{role:"user",content:user}]
+        })
+      });
+      const data = await res.json();
+      let txt = data.choices?.[0]?.message?.content?.trim() || "{}";
+      // Clean accidental code fences
+      txt = txt.replace(/^```json/i,"").replace(/^```/,"").replace(/```$/,"").trim();
+      try { return JSON.parse(txt); } catch(e){ console.warn("JSON parse failed", txt); return null; }
+    }
+
+    // Render the quote table
+    function renderQuote(q){
+      if (!q || !q.items || !Array.isArray(q.items) || !q.items.length){
+        UI.quoteWrap.innerHTML = '<div class="text-slate-500 text-sm">No quote generated.</div>';
+        return;
+      }
+      UI.quoteMeta.innerHTML = `
+        <span class="text-slate-300">Quote ID:</span> ${q.quoteId || '-'}
+        <span class="ml-4 text-slate-300">Customer:</span> ${q.customer?.name || '-'}
+        <span class="ml-4 text-slate-300">Type:</span> ${q.customer?.businessType || '-'}
+        <span class="ml-4 text-slate-300">Branches:</span> ${q.customer?.branches ?? '-'}
+        <span class="ml-4 text-slate-300">Currency:</span> ${q.currency || 'THB'}
+      `;
+      const rows = q.items.map(it => `
+        <tr>
+          <td>${escapeHtml(it.name || '')}</td>
+          <td>${it.category || ''}</td>
+          <td class="text-right">${toInt(it.qty)}</td>
+          <td class="text-right">${fmt(it.unit)}</td>
+          <td class="text-right">${fmt(it.total)}</td>
+        </tr>
+      `).join("");
+
+      const discRows = (q.discounts||[]).map(d => `
+        <tr>
+          <td colspan="4" class="text-right text-slate-300">${escapeHtml(d.label||'Discount')}</td>
+          <td class="text-right text-rose-300">- ${fmt(d.amount||0)}</td>
+        </tr>
+      `).join("");
+
+      UI.quoteWrap.innerHTML = `
+        <div id="quote-print-area">
+          <div class="mb-3">
+            <div class="text-xl font-semibold text-white">Customer Quote</div>
+            <div class="text-slate-400 text-sm">Auto-generated from the conversation.</div>
+          </div>
+          <table class="quote-table w-full text-sm">
+            <thead>
+              <tr>
+                <th>Item</th><th>Category</th><th class="text-right">Qty</th><th class="text-right">Unit</th><th class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" class="text-right text-slate-300">Subtotal</td>
+                <td class="text-right">${fmt(q.subtotal||0)}</td>
+              </tr>
+              ${discRows}
+              <tr>
+                <td colspan="4" class="text-right text-slate-300 font-semibold">Grand Total</td>
+                <td class="text-right font-semibold text-emerald-300">${fmt(q.grandTotal||0)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          ${q.notes ? `<div class="mt-3 text-slate-300 text-sm">Notes: ${escapeHtml(q.notes)}</div>` : ''}
         </div>
-    </div>
+      `;
 
-    <script>
-        // DOM Element References
-        const fileInput = document.getElementById('file-input');
-        const fileInfo = document.getElementById('file-info');
-        const mainContent = document.getElementById('main-content');
-        const dataPreview = document.getElementById('data-preview');
-        const chatHistory = document.getElementById('chat-history');
-        const aiQuestion = document.getElementById('ai-question');
-        const askAiBtn = document.getElementById('ask-ai-btn');
-        const btnText = document.getElementById('btn-text');
-        const btnSpinner = document.getElementById('btn-spinner');
-        const geminiSelector = document.getElementById('gemini-selector');
-        const chatgptSelector = document.getElementById('chatgpt-selector');
-        const exportSection = document.getElementById('export-section');
-        const generatedTableContainer = document.getElementById('generated-table-container');
-        const exportBtn = document.getElementById('export-btn');
+      // stash for export
+      window.__LAST_QUOTE__ = q;
+    }
 
-        const GEMINI_API_KEY = "AIzaSyBOurSwEdhn6IHFpFr-BMhhp54iVsa8aYs";
-        const CHATGPT_API_KEY_B64 = "c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=";
+    // Export helpers
+    UI.exportQuoteCSV.addEventListener('click', ()=>{
+      const q = window.__LAST_QUOTE__; if(!q){ addMsg('No quote to export yet.'); return; }
+      const rows = [
+        ['Quote ID', q.quoteId || ''],
+        ['Customer', q.customer?.name || ''],
+        ['Business Type', q.customer?.businessType || ''],
+        ['Branches', q.customer?.branches ?? ''],
+        ['Currency', q.currency || 'THB'],
+        [],
+        ['Item','Category','Qty','Unit','Total']
+      ];
+      (q.items||[]).forEach(it=>{
+        rows.push([it.name||'', it.category||'', toInt(it.qty), num(it.unit), num(it.total)]);
+      });
+      rows.push([]);
+      rows.push(['Subtotal','', '', '', num(q.subtotal)]);
+      (q.discounts||[]).forEach(d=>{
+        rows.push([`Discount: ${d.label||''}`,'','','', -Math.abs(num(d.amount))]);
+      });
+      rows.push(['Grand Total','','','', num(q.grandTotal)]);
+      const csv = rows.map(r=>r.map(v => (typeof v==='number' ? v : `"${String(v).replace(/"/g,'""')}"`)).join(',')).join('\n');
+      downloadBlob(csv, 'text/csv;charset=utf-8;', 'customer-quote.csv');
+    });
 
-        let parsedDataAsString = '';
-        let geminiChatHistory = [];
-        let chatgptChatHistory = [];
-        let selectedAI = 'gemini';
-        let generatedTableData = []; 
+    UI.exportQuotePDF.addEventListener('click', ()=>{
+      const area = document.getElementById('quote-print-area');
+      if(!area){ addMsg('No quote to export yet.'); return; }
+      const opt = {
+        margin:       10,
+        filename:     'customer-quote.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(area).save();
+    });
 
-        // --- 1. File Handling Logic ---
-        fileInput.addEventListener('change', handleFile);
+    function downloadBlob(text, mime, filename){
+      const blob=new Blob([text],{type:mime});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 500);
+    }
+    function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
+    function num(v){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
+    function toInt(v){ const n=parseInt(v,10); return Number.isFinite(n)?n:0; }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            fileInfo.textContent = `Processing file: ${file.name}...`;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                if (jsonData.length === 0) {
-                    fileInfo.textContent = "Error: The selected file is empty.";
-                    return;
-                }
-                parsedDataAsString = jsonData.map(row => row.join(', ')).join('\n');
-                displayTable(jsonData, dataPreview);
-                fileInfo.textContent = `Successfully loaded: ${file.name}`;
-                mainContent.classList.remove('hidden');
-                aiQuestion.disabled = false;
-                askAiBtn.disabled = false;
-            };
-            reader.onerror = function() { fileInfo.textContent = "Error reading the file."; };
-            reader.readAsArrayBuffer(file);
+    // File handling (preview only — you can wire pricing to these rows later)
+    UI.file.addEventListener('change',(e)=>{
+      const file=e.target.files[0];
+      if(!file) return;
+      UI.fileInfo.textContent=`Loaded: ${file.name}`;
+      addMsg('📂 Price Book uploaded. You can now chat with ChatGPT Agent about pricing.');
+
+      const reader=new FileReader();
+      reader.onload=(ev)=>{
+        const data=new Uint8Array(ev.target.result);
+        const wb=XLSX.read(data,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const matrix=XLSX.utils.sheet_to_json(ws,{header:1});
+        if(!matrix.length) { UI.preview.textContent='(Empty file)'; return; }
+
+        // render preview
+        const table=document.createElement('table'); table.className='w-full text-sm';
+        const thead=document.createElement('thead'); const trh=document.createElement('tr');
+        for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th); }
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody=document.createElement('tbody');
+        for(let i=1;i<Math.min(matrix.length,60);i++){
+          const tr=document.createElement('tr');
+          for(const cell of matrix[i]){
+            const td=document.createElement('td'); td.className='px-2 py-1 border border-slate-800'; td.textContent=(cell==null)?'':cell; tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
         }
+        table.appendChild(tbody);
+        UI.preview.innerHTML=''; UI.preview.appendChild(table);
+      };
+      reader.readAsArrayBuffer(file);
+    });
 
-        // --- 2. Data Display Logic ---
-        function displayTable(data, container) {
-            if (!data || data.length === 0) {
-                container.innerHTML = '<p class="text-gray-500">No data to display.</p>';
-                return;
-            }
-            const table = document.createElement('table');
-            const headerRow = document.createElement('tr');
-            data[0].forEach(headerText => {
-                const th = document.createElement('th');
-                th.textContent = headerText;
-                headerRow.appendChild(th);
-            });
-            table.appendChild(headerRow);
-            for (let i = 1; i < data.length; i++) {
-                const row = document.createElement('tr');
-                data[i].forEach(cellText => {
-                    const td = document.createElement('td');
-                    td.textContent = cellText;
-                    row.appendChild(td);
-                });
-                table.appendChild(row);
-            }
-            container.innerHTML = '';
-            container.appendChild(table);
+    // Chat cycle
+    let lastAssistantText = '';
+    UI.send.addEventListener('click', async ()=>{
+      const text=UI.freeText.value.trim();
+      if(!text) return;
+      addMsg(text,'user');
+      UI.freeText.value='';
+      addMsg('🤖 Processing with ChatGPT…');
+
+      try{
+        // 1) Free-form assistant answer
+        const reply = await chatWithGPT(text);
+        lastAssistantText = reply;
+        addMsg(reply,'assistant');
+        UI.results.textContent = reply;
+
+        // 2) Structured quote (JSON) based on the exchange
+        const contextBlob = `User: ${text}\nAssistant: ${reply}`;
+        const quote = await generateQuoteJSON(contextBlob);
+        renderQuote(quote);
+
+        // 3) Optional short sales narrative from the quote
+        if (quote && typeof quote.grandTotal === 'number'){
+          UI.narrative.textContent = `สรุปใบเสนอราคา: ยอดก่อนส่วนลด ${fmt(quote.subtotal)} ลดทั้งสิ้น ${fmt((quote.discounts||[]).reduce((s,d)=>s+Math.abs(d.amount||0),0))} เหลือสุทธิ ${fmt(quote.grandTotal)} ${quote.notes ? `\nหมายเหตุ: ${quote.notes}` : ''}`;
         }
-        
-        // --- 3. AI Chat Logic ---
-        geminiSelector.addEventListener('click', () => selectAI('gemini'));
-        chatgptSelector.addEventListener('click', () => selectAI('chatgpt'));
+      }catch(err){
+        console.error(err);
+        addMsg('❗ OpenAI call failed. Check network and API key.','assistant');
+      }
+    });
 
-        function selectAI(ai) {
-            selectedAI = ai;
-            geminiSelector.classList.toggle('active', ai === 'gemini');
-            chatgptSelector.classList.toggle('active', ai === 'chatgpt');
-            clearAIChat();
-        }
-
-        function clearAIChat() {
-            geminiChatHistory = [];
-            chatgptChatHistory = [];
-            chatHistory.innerHTML = '<div class="assistant-message-container"><div class="chat-bubble chat-bubble-assistant">AI model switched. Ask a new question to start the conversation.</div></div>';
-        }
-
-        askAiBtn.addEventListener('click', handleAIChat);
-        aiQuestion.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') handleAIChat();
-        });
-
-        function handleAIChat() {
-            const userQuery = aiQuestion.value.trim();
-            if (!userQuery || !parsedDataAsString) return;
-            (selectedAI === 'gemini') ? askGemini(userQuery) : askChatGPT(userQuery);
-        }
-
-        async function askGemini(userQuery) {
-            addMessageToChat(userQuery, 'user');
-            geminiChatHistory.push({ role: "user", parts: [{ text: userQuery }] });
-            aiQuestion.value = '';
-            toggleLoading(true);
-            
-            // CORRECTED: Restored strict prompt logic
-            const systemPrompt = `You are an expert AI assistant specializing in analyzing data logs from the provided file. Your primary task is to help users by answering questions based *only* on the historical data from the file. Do not use any external knowledge.
-IMPORTANT: If your response contains structured data that can be represented as a table (e.g., a budget, a list of items, troubleshooting steps), you MUST format it as a Markdown table.
-Here is the data from the log file:
---- DATA START ---
-${parsedDataAsString}
---- DATA END ---
-Now, carefully analyze the data above and answer the user's question. Your answer must be based exclusively on the provided data.`;
-
-            const messagesToSend = (geminiChatHistory.length === 1)
-                ? [{ role: 'user', parts: [{ text: `${systemPrompt}\nUser's Question: "${userQuery}"` }] }]
-                : geminiChatHistory;
-
-            try {
-                const payload = { contents: messagesToSend };
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-                });
-                if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
-                const result = await response.json();
-                const aiResponse = result.candidates[0].content.parts[0].text;
-                addMessageToChat(aiResponse, 'assistant');
-                geminiChatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
-            } catch (error) {
-                console.error("Gemini API Error:", error);
-                addMessageToChat(`Sorry, I encountered an error with Gemini: ${error.message}`, 'assistant');
-                geminiChatHistory.pop();
-            } finally {
-                toggleLoading(false);
-            }
-        }
-
-        async function askChatGPT(userQuery) {
-            addMessageToChat(userQuery, 'user');
-            chatgptChatHistory.push({ role: "user", content: userQuery });
-            aiQuestion.value = '';
-            toggleLoading(true);
-            
-            // CORRECTED: Restored strict prompt logic
-            const systemPrompt = `You are an expert AI assistant specializing in analyzing data logs from the provided file. Your primary task is to help users by answering questions based *only* on the historical data from the file. Do not use any external knowledge.
-IMPORTANT: If your response contains structured data that can be represented as a table (e.g., a budget, a list of items, troubleshooting steps), you MUST format it as a Markdown table.
-The data from the user's file is provided below.
---- DATA START ---
-${parsedDataAsString}
---- DATA END ---
-Your answer must be based exclusively on the provided data.`;
-            
-            const messagesToSend = [{ role: "system", content: systemPrompt }, ...chatgptChatHistory];
-            try {
-                const decodedApiKey = atob(CHATGPT_API_KEY_B64);
-                const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + decodedApiKey },
-                    body: JSON.stringify({ model: "gpt-4o-mini", messages: messagesToSend })
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API request failed: ${errorData.error.message}`);
-                }
-                const data = await response.json();
-                const aiResponse = data.choices[0].message.content;
-                addMessageToChat(aiResponse, 'assistant');
-                chatgptChatHistory.push({ role: 'assistant', content: aiResponse });
-            } catch (error) {
-                console.error("ChatGPT API Error:", error);
-                addMessageToChat(`Sorry, I encountered an error with ChatGPT: ${error.message}`, 'assistant');
-                chatgptChatHistory.pop();
-            } finally {
-                toggleLoading(false);
-            }
-        }
-
-        function addMessageToChat(message, sender) {
-            if (sender === 'user') {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'chat-bubble chat-bubble-user';
-                messageDiv.textContent = message;
-                chatHistory.appendChild(messageDiv);
-            } else { // Assistant
-                const container = document.createElement('div');
-                container.className = 'assistant-message-container';
-                
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'chat-bubble chat-bubble-assistant';
-                messageDiv.textContent = message;
-
-                const generateTableBtn = document.createElement('button');
-                generateTableBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 3a1 1 0 000 2h14a1 1 0 100-2H3zM3 7a1 1 0 000 2h14a1 1 0 100-2H3zM3 11a1 1 0 100 2h14a1 1 0 100-2H3zM3 15a1 1 0 100 2h14a1 1 0 100-2H3z" /></svg>`;
-                generateTableBtn.className = 'p-2 bg-gray-600 hover:bg-blue-600 rounded-full text-white transition-colors';
-                generateTableBtn.title = "Generate Table from this Response";
-                generateTableBtn.onclick = () => handleGenerateTable(message);
-
-                container.appendChild(messageDiv);
-                container.appendChild(generateTableBtn);
-                chatHistory.appendChild(container);
-            }
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        }
-
-        function toggleLoading(isLoading) {
-            askAiBtn.disabled = isLoading;
-            btnText.classList.toggle('hidden', isLoading);
-            btnSpinner.classList.toggle('hidden', !isLoading);
-        }
-
-        // --- 4. Table Generation and Export Logic ---
-        function handleGenerateTable(message) {
-            const tableData = parseMarkdownTable(message);
-            if (tableData && tableData.length > 0) {
-                generatedTableData = tableData; // Store for export
-                displayTable(tableData, generatedTableContainer);
-                exportSection.classList.remove('hidden');
-                exportBtn.disabled = false;
-                exportSection.scrollIntoView({ behavior: 'smooth' });
-            } else {
-                generatedTableContainer.innerHTML = '<p class="text-red-400">Could not find a valid Markdown table in the AI response.</p>';
-                exportSection.classList.remove('hidden');
-                exportBtn.disabled = true;
-            }
-        }
-
-        function parseMarkdownTable(text) {
-            const lines = text.split('\n').filter(line => line.trim().startsWith('|'));
-            if (lines.length < 2) return null;
-
-            const data = lines
-                .filter(line => !line.match(/^\|\s*[-:]+\s*\|/))
-                .map(line => 
-                    line.split('|')
-                        .map(cell => cell.trim())
-                        .filter((cell, index, arr) => index > 0 && index < arr.length - 1)
-                );
-            return data.filter(row => row.length > 0 && row.some(cell => cell));
-        }
-
-        exportBtn.addEventListener('click', () => {
-            if (generatedTableData.length === 0) return;
-            const worksheet = XLSX.utils.aoa_to_sheet(generatedTableData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "SOLmate Export");
-            XLSX.writeFile(workbook, "SOLmate_Export.xlsx");
-        });
-    </script>
+    // Initial hint
+    addMsg('👋 Hello! Please upload a Price Book file to begin. After that, ask me anything about POS pricing and I’ll generate answers and a customer-ready quote table you can export.');
+  </script>
 </body>
 </html>
