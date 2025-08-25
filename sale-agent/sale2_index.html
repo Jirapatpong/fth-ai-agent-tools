@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Estimator — ChatGPT Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-YcsIPb5VZ9x2hX3o8rW3h5S3iGf1yQbJQfT8CwQZqkzKf2Wc+oQmQeQdQkOY1ddo5rI4sQqg24dGQKSaX3k9xA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .chat-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: .75rem; margin-bottom: .5rem; white-space: pre-wrap; word-wrap: break-word; }
+    .chat-bubble-user { background: #2563eb; color: #fff; align-self: flex-end; border-bottom-right-radius: .25rem; }
+    .chat-bubble-assistant { background: #1f2937; color: #e5e7eb; align-self: flex-start; border-bottom-left-radius: .25rem; }
+    .quote-table th, .quote-table td { border-bottom: 1px solid #334155; padding: .5rem .75rem; }
+    .quote-table th { background: #0f172a; color: #cbd5e1; text-align: left; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8">
+  <div class="mx-auto max-w-6xl">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
+      <p class="text-slate-400 mt-2">Upload your price book, then chat. The quote table uses your file data; unit prices shown are <b>THB</b>.</p>
+    </header>
+
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
+        <h2 class="text-xl font-semibold mb-4">1) Upload Price Book</h2>
+        <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
+          <label class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold cursor-pointer">
+            Browse (.xlsx/.csv)
+            <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" />
+          </label>
+          <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
+        </div>
+        <div id="data-preview" class="mt-4 overflow-auto max-h-[400px] bg-slate-900 rounded-xl p-3 text-slate-400 text-sm">Preview will appear here…</div>
+      </div>
+
+      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
+        <h2 class="text-xl font-semibold mb-4">2) Chat with ChatGPT Agent</h2>
+        <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col text-sm"></div>
+        <div class="mt-3 flex gap-2">
+          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder='Try: "quote f&b 2 branches + inventory + aggressive"'/>
+          <button id="send-btn" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <!-- AI Answer (free text) -->
+      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
+        <h2 class="text-xl font-semibold mb-4">3) AI Answer</h2>
+        <div id="results" class="text-slate-300">Results will appear here…</div>
+      </div>
+
+      <!-- Deal Narrative (optional) -->
+      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
+        <h2 class="text-xl font-semibold mb-4">4) Deal Narrative</h2>
+        <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Narrative will appear here…</div>
+      </div>
+    </section>
+
+    <!-- Customer Quote built from FILE DATA -->
+    <section class="mt-6 bg-slate-800 rounded-2xl p-6 shadow">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">5) Customer Quote (From Price Book)</h2>
+        <div class="flex gap-2">
+          <button id="export-quote-csv" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold">Export CSV</button>
+          <button id="export-quote-pdf" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold">Export PDF</button>
+        </div>
+      </div>
+      <div id="quote-meta" class="text-sm text-slate-400 mb-3">Quote will be generated after each request (uses list prices from file, discount shown separately).</div>
+      <div id="quote-table-wrap" class="bg-slate-900 rounded-xl p-4 overflow-auto">
+        <div class="text-slate-500 text-sm">No quote yet.</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // -------------------- Helpers & UI --------------------
+    const $ = (sel) => document.querySelector(sel);
+    const UI = {
+      file:$('#file-input'), fileInfo:$('#file-info'), preview:$('#data-preview'),
+      chat:$('#chat-history'), freeText:$('#free-text'), send:$('#send-btn'),
+      results:$('#results'), narrative:$('#narrative'),
+      quoteMeta:$('#quote-meta'), quoteWrap:$('#quote-table-wrap'),
+      exportQuoteCSV:$('#export-quote-csv'), exportQuotePDF:$('#export-quote-pdf')
+    };
+    function addMsg(text,who='assistant'){
+      const el=document.createElement('div');
+      el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
+      el.textContent=text;
+      UI.chat.appendChild(el);
+      UI.chat.scrollTop=UI.chat.scrollHeight;
+    }
+    function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
+    function num(v){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
+    function toInt(v){ const n=parseInt(v,10); return Number.isFinite(n)?n:0; }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+    // -------------------- OpenAI (Direct) for intent & narrative --------------------
+    function decodeKey(b64){ try{ return atob(b64).trim(); }catch(e){ return ''; } }
+    const OPENAI_KEY = decodeKey("c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=");
+
+    async function openaiChat(messages, {temperature=0.2, model="gpt-4o-mini"} = {}){
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json","Authorization": `Bearer ${OPENAI_KEY}` },
+        body: JSON.stringify({ model, temperature, messages })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content ?? "";
+    }
+    async function openaiJSON(system, user){
+      const txt = await openaiChat(
+        [{ role: "system", content: system }, { role: "user", content: user }],
+        { temperature: 0.1 }
+      );
+      const cleaned = txt.trim().replace(/^```json/i,"").replace(/^```/,"").replace(/```$/,"").trim();
+      return JSON.parse(cleaned);
+    }
+
+    // -------------------- Pricebook ingestion --------------------
+    const state = { headers:[], rows:[], mapping:{}, parsedOK:false, lastCalc:null, lastParams:null };
+    UI.file.addEventListener('change',(e)=>{
+      const file=e.target.files[0]; if(!file) return;
+      UI.fileInfo.textContent=`Loaded: ${file.name}`;
+      addMsg('📂 Price Book uploaded. I will use list prices from this file (THB).');
+
+      const reader=new FileReader();
+      reader.onload=(ev)=>{
+        const data=new Uint8Array(ev.target.result);
+        const wb=XLSX.read(data,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const matrix=XLSX.utils.sheet_to_json(ws,{header:1});
+        if(!matrix.length) { UI.preview.textContent='(Empty file)'; return; }
+
+        state.headers = matrix[0].map(x => (x || '').toString());
+        state.rows = matrix.slice(1);
+        renderPreview(matrix);
+        inferMapping();
+        state.parsedOK = true;
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    function renderPreview(matrix){
+      const table=document.createElement('table'); table.className='w-full text-sm';
+      const thead=document.createElement('thead'); const trh=document.createElement('tr');
+      for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th); }
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody=document.createElement('tbody');
+      for(let i=1;i<Math.min(matrix.length,60);i++){
+        const tr=document.createElement('tr');
+        for(const cell of matrix[i]){
+          const td=document.createElement('td'); td.className='px-2 py-1 border border-slate-800'; td.textContent=(cell==null)?'':cell; tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      UI.preview.innerHTML=''; UI.preview.appendChild(table);
+    }
+
+    function inferMapping(){
+      const H=state.headers.map(h=>h.trim().toLowerCase());
+      const findCol=(...cans)=>{ const i=H.findIndex(h=>cans.some(c=>h.includes(c))); return i>=0?i:-1; };
+      state.mapping = {
+        bizType: findCol('restaurants sme','business type','retail sme'),
+        compId: findCol('components id'),
+        compName: findCol('components','table per store'),
+        qty: findCol('qty'),
+        mandatory: findCol('mandatory'),
+        unitPrice: findCol('unit price'),
+        remark: findCol('remark'),
+      };
+    }
+    function toStr(v){ return (v==null)?'':String(v).trim(); }
+    function nnum(v){ const n = Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
+    function rowToObj(row){
+      const m=state.mapping;
+      return {
+        bizType:toStr(row[m.bizType]),
+        compId:toStr(row[m.compId]),
+        compName:toStr(row[m.compName]),
+        qty: nnum(row[m.qty])||1,
+        mandatory: toStr(row[m.mandatory]).toUpperCase(),
+        unitPrice: nnum(row[m.unitPrice]),
+        remark: toStr(row[m.remark]),
+        _raw: row
+      };
+    }
+
+    // helpers to get row or unit
+    function getCatalog(biz){ 
+      const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
+      return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName));
+    }
+    function findRow(catalog, keyword){
+      const k = keyword.toLowerCase();
+      return catalog.find(r => (r.compName||'').toLowerCase().includes(k)) || null;
+    }
+    function pickHQRow(catalog, branches, biz){
+      const label=biz==='Retail'?'hq retail license':'hq f&b license';
+      const cands=catalog.filter(r=>(r.compName||'').toLowerCase().includes(label));
+      if(!cands.length) return null;
+      let best=cands[0];
+      for(const r of cands){
+        const name=(r.compName||'').toLowerCase();
+        if(/1-10/.test(name) && branches<=10){best=r;break;}
+        if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;}
+        if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;}
+        if(/more than 30|\b>\s*30|\bmore than/.test(name) && branches>30){best=r;break;}
+      }
+      return best;
+    }
+    function pickImplementationRow(catalog, branches){
+      const cands=catalog.filter(r=>/implementation/i.test(r.compName||''));
+      if(!cands.length) return null;
+      let best=cands[0];
+      for(const r of cands){
+        const name=(r.compName||'').toLowerCase();
+        if(/1-10/.test(name) && branches<=10){best=r;break;}
+        if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;}
+        if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;}
+        if(/more than 30|\b>\s*30|\bmore than/.test(name) && branches>30){best=r;break;}
+      }
+      return best;
+    }
+
+    // -------------------- Strategies (same as earlier) --------------------
+    const STRATEGIES = {
+      base: { key:'base', label:'Base (No discount)', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 },
+      competitive: { key:'competitive', label:'Competitive (Win 60%)', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 },
+      aggressive: { key:'aggressive', label:'Aggressive (Win 70%)', perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25}, bundleOptionalPrice:10000, supportFreeMonths:6 }
+    };
+    function applyDiscount(amount,pct){ return Math.max(0, Math.round(amount*(1-pct))); }
+
+    // -------------------- Core calculator from FILE DATA --------------------
+    function calculateFromFile({biz='F&B', branches=1, optional={}, strategy='competitive'}){
+      const catalog = getCatalog(biz==='Retail'?'Retail':'F&B');
+
+      const hqRow = pickHQRow(catalog, branches, biz);
+      const hq = hqRow?.unitPrice || 0;
+
+      const posRow = findRow(catalog,'POS Terminal');
+      const posU = posRow?.unitPrice || 0;
+
+      const invRow = findRow(catalog,'Inventory Module');
+      const invU = invRow?.unitPrice || 0;
+
+      const ioRow  = findRow(catalog,'iOrder');
+      const ioU = ioRow?.unitPrice || 0;
+
+      const kdsRow = findRow(catalog,'KDS');
+      const kdsU = kdsRow?.unitPrice || 0;
+
+      const supportRow = findRow(catalog,'Operation Support');
+      const supportU = supportRow?.unitPrice || 0;
+
+      const implRow = pickImplementationRow(catalog, branches);
+      const implU = implRow?.unitPrice || 0;
+
+      // List totals (THB)
+      const itemsList = {
+        HQ: { name: hqRow?.compName || (biz==='Retail'?'HQ Retail License':'HQ F&B License'), qty:1, unit:hq, total:hq, category:'Mandatory' },
+        POS: { name: posRow?.compName || 'POS Terminal', qty:branches, unit:posU, total:posU*branches, category:'Mandatory' },
+        IMPL: { name: implRow?.compName || 'Implementation', qty:1, unit:implU, total:implU, category:'Mandatory' },
+        SUPPORT: { name: supportRow?.compName || 'Operation Support', qty:branches, unit:supportU, total:supportU*branches, category:'Mandatory' },
+      };
+      const optList = [];
+      if (optional.inventory) optList.push({ name: invRow?.compName || 'Inventory Module', qty:branches, unit:invU, total:invU*branches, category:'Optional' });
+      if (optional.iorder)    optList.push({ name: ioRow?.compName  || 'iOrder',           qty:branches, unit:ioU,  total:ioU*branches,  category:'Optional' });
+      if (optional.kds)       optList.push({ name: kdsRow?.compName || 'KDS',              qty:branches, unit:kdsU, total:kdsU*branches, category:'Optional' });
+
+      const baseMandatory = itemsList.HQ.total + itemsList.POS.total + itemsList.IMPL.total + itemsList.SUPPORT.total;
+      const baseOptional = optList.reduce((s,x)=>s+x.total,0);
+      const baseGrand = baseMandatory + baseOptional;
+
+      // Apply strategy discounts to get PROPOSED (grand total)
+      const strat = STRATEGIES[strategy] || STRATEGIES.competitive;
+      const d = strat.perItemDiscount;
+
+      const hqD = applyDiscount(itemsList.HQ.total, d.hq ?? d.default);
+      const posD = applyDiscount(itemsList.POS.total, d.pos ?? d.default);
+      const implD = applyDiscount(itemsList.IMPL.total, d.impl ?? d.default);
+
+      const freePct = Math.min(1,(strat.supportFreeMonths||0)/12);
+      const supportAfterPct = applyDiscount(itemsList.SUPPORT.total, d.support ?? d.default);
+      const supportD = applyDiscount(supportAfterPct, freePct);
+
+      let optD = 0;
+      if (optional.bundle && strat.bundleOptionalPrice!==null && baseOptional>0){
+        optD = strat.bundleOptionalPrice; // flat bundle price
+      } else {
+        const p = d.optional ?? d.default;
+        optD = optList.reduce((s,x)=> s + applyDiscount(x.total, p), 0);
+      }
+
+      const discountedMandatory = hqD + posD + implD + supportD;
+      const discountedGrand = discountedMandatory + optD;
+
+      return {
+        biz, branches, strategy,
+        listItems: [itemsList.HQ,itemsList.POS,itemsList.IMPL,itemsList.SUPPORT, ...optList],
+        baseMandatory, baseOptional, baseGrand,
+        discountedMandatory, discountedGrand,
+        // for per-unit proposed if needed
+        proposed: {
+          HQ: hqD, POS: posD, IMPL: implD, SUPPORT: supportD, OPT: optD
+        },
+        optFlags: { ...optional },
+        names: { inv: invRow?.compName, io: ioRow?.compName, kds: kdsRow?.compName }
+      };
+    }
+
+    // -------------------- Build quote JSON (list THB + discount line) --------------------
+    function buildQuoteFromCalc(calc){
+      const qid = 'Q-' + new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14);
+      const items = calc.listItems.map(x => ({
+        name: x.name, category: x.category,
+        qty: toInt(x.qty), unit: num(x.unit), total: num(x.total)
+      }));
+      const subtotal = items.reduce((s,x)=> s + num(x.total), 0);
+      const grand = calc.discountedGrand;
+      const discountAmount = Math.max(0, subtotal - grand);
+
+      const discounts = discountAmount > 0 ? [{ label: 'Strategic discount', amount: discountAmount }] : [];
+
+      return {
+        quoteId: qid,
+        customer: { name: null, businessType: (calc.biz==='Retail'?'Retail':'F&B'), branches: calc.branches },
+        currency: 'THB',
+        items,
+        discounts,
+        subtotal,
+        grandTotal: grand,
+        notes: discountAmount>0 ? `Savings vs list: THB ${fmt(discountAmount)}` : ''
+      };
+    }
+
+    // -------------------- Render quote table --------------------
+    function renderQuote(q){
+      if (!q || !Array.isArray(q.items) || !q.items.length){
+        UI.quoteWrap.innerHTML = '<div class="text-slate-500 text-sm">No quote generated.</div>';
+        return;
+      }
+      UI.quoteMeta.innerHTML = `
+        <span class="text-slate-300">Quote ID:</span> ${q.quoteId}
+        <span class="ml-4 text-slate-300">Type:</span> ${q.customer?.businessType || '-'}
+        <span class="ml-4 text-slate-300">Branches:</span> ${q.customer?.branches ?? '-'}
+        <span class="ml-4 text-slate-300">Currency:</span> THB
+      `;
+
+      const rows = q.items.map(it => `
+        <tr>
+          <td>${escapeHtml(it.name || '')}</td>
+          <td>${it.category || ''}</td>
+          <td class="text-right">${toInt(it.qty)}</td>
+          <td class="text-right">฿ ${fmt(it.unit)}</td>
+          <td class="text-right">฿ ${fmt(it.total)}</td>
+        </tr>
+      `).join("");
+
+      const discRows = (q.discounts||[]).map(d => `
+        <tr>
+          <td colspan="4" class="text-right text-slate-300">${escapeHtml(d.label||'Discount')}</td>
+          <td class="text-right text-rose-300">- ฿ ${fmt(d.amount||0)}</td>
+        </tr>
+      `).join("");
+
+      UI.quoteWrap.innerHTML = `
+        <div id="quote-print-area">
+          <div class="mb-3">
+            <div class="text-xl font-semibold text-white">Customer Quote</div>
+            <div class="text-slate-400 text-sm">List prices from your file (THB). Discounts shown below.</div>
+          </div>
+          <table class="quote-table w-full text-sm">
+            <thead>
+              <tr>
+                <th>Item</th><th>Category</th><th class="text-right">Qty</th><th class="text-right">Unit (THB)</th><th class="text-right">Total (THB)</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" class="text-right text-slate-300">Subtotal</td>
+                <td class="text-right">฿ ${fmt(q.subtotal||0)}</td>
+              </tr>
+              ${discRows}
+              <tr>
+                <td colspan="4" class="text-right text-slate-300 font-semibold">Grand Total</td>
+                <td class="text-right font-semibold text-emerald-300">฿ ${fmt(q.grandTotal||0)}</td>
+              </tr>
+            </tfoot>
+          </table>
+          ${q.notes ? `<div class="mt-3 text-slate-300 text-sm">Notes: ${escapeHtml(q.notes)}</div>` : ''}
+        </div>
+      `;
+      window.__LAST_QUOTE__ = q;
+    }
+
+    // -------------------- Export CSV / PDF --------------------
+    UI.exportQuoteCSV.addEventListener('click', ()=>{
+      const q = window.__LAST_QUOTE__; if(!q){ addMsg('No quote to export yet.'); return; }
+      const rows = [
+        ['Quote ID', q.quoteId || ''],
+        ['Business Type', q.customer?.businessType || ''],
+        ['Branches', q.customer?.branches ?? ''],
+        ['Currency', 'THB'],
+        [],
+        ['Item','Category','Qty','Unit (THB)','Total (THB)']
+      ];
+      (q.items||[]).forEach(it=> rows.push([it.name||'', it.category||'', toInt(it.qty), num(it.unit), num(it.total)]));
+      rows.push([]);
+      rows.push(['Subtotal','','','', num(q.subtotal)]);
+      (q.discounts||[]).forEach(d=> rows.push([`Discount: ${d.label||''}`,'','','', -Math.abs(num(d.amount))]));
+      rows.push(['Grand Total','','','', num(q.grandTotal)]);
+      const csv = rows.map(r=>r.map(v=> typeof v==='number'? v : `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      downloadBlob(csv, 'text/csv;charset=utf-8;', 'customer-quote.csv');
+    });
+
+    UI.exportQuotePDF.addEventListener('click', ()=>{
+      const area = document.getElementById('quote-print-area');
+      if(!area){ addMsg('No quote to export yet.'); return; }
+      const opt = { margin:10, filename:'customer-quote.pdf', image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+      html2pdf().set(opt).from(area).save();
+    });
+
+    function downloadBlob(text, mime, filename){
+      const blob=new Blob([text],{type:mime});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 500);
+    }
+
+    // -------------------- Intent parsing & narrative (AI) --------------------
+    async function parseIntent(userText){
+      const system = `
+Return ONLY strict JSON (no code fences) with:
+{"biz":"F&B"|"Retail","branches":number,"optional":{"inventory":boolean,"iorder":boolean,"kds":boolean,"bundle":boolean},"strategy":"base"|"competitive"|"aggressive"}
+Defaults: biz="F&B", branches=1, optional false, strategy="competitive".
+"win 70" => aggressive; "base" => base; "bundle"/"pack" => optional.bundle=true.`;
+      const data = await openaiJSON(system, userText);
+      return {
+        biz: (data.biz === "Retail") ? "Retail" : "F&B",
+        branches: Number.isFinite(+data.branches) && +data.branches > 0 ? +data.branches : 1,
+        optional: {
+          inventory: !!data?.optional?.inventory,
+          iorder: !!data?.optional?.iorder,
+          kds: !!data?.optional?.kds,
+          bundle: !!data?.optional?.bundle,
+        },
+        strategy: ["base","competitive","aggressive"].includes(data.strategy) ? data.strategy : "competitive",
+      };
+    }
+
+    async function writeNarrativeTH(context){
+      const sys = "Write a concise Thai sales narrative for a POS quote.";
+      const user = `สรุปข้อเสนอราคาแบบย่อ:\n- ประเภทธุรกิจ: ${context.biz}\n- จำนวนสาขา: ${context.branches}\n- กลยุทธ์: ${context.strategy}\n- ราคารวมก่อนส่วนลด: ${context.baseGrand}\n- ราคารวมเสนอ: ${context.discountedGrand}\n- ประหยัดรวม: ${context.baseGrand - context.discountedGrand}\nช่วยเขียนให้เหมาะส่งลูกค้า (ไม่ยาวเกินไป).`;
+      return openaiChat([{role:"system",content:sys},{role:"user",content:user}], {temperature:0.4});
+    }
+
+    // -------------------- Chat flow --------------------
+    UI.send.addEventListener('click', async ()=>{
+      const text = UI.freeText.value.trim(); if (!text) return;
+      if (!state.parsedOK){ addMsg('❗ Please upload a Price Book first.'); return; }
+
+      addMsg(text,'user'); UI.freeText.value='';
+      try {
+        // 1) Show assistant free text (optional for UX; not used for pricing)
+        const free = await openaiChat([
+          {role:"system",content:"You are a helpful sales assistant for POS pricing."},
+          {role:"user",content:text}
+        ]);
+        UI.results.textContent = free;
+        addMsg(free,'assistant');
+
+        // 2) Parse intent -> compute from FILE DATA (THB list) -> quote
+        const params = await parseIntent(text);
+        state.lastParams = params;
+        const calc = calculateFromFile(params);
+        state.lastCalc = calc;
+
+        const quote = buildQuoteFromCalc(calc);
+        renderQuote(quote);
+
+        // 3) Optional Thai narrative from totals
+        const nar = await writeNarrativeTH({
+          biz: params.biz, branches: params.branches, strategy: params.strategy,
+          baseGrand: calc.baseGrand, discountedGrand: calc.discountedGrand
+        });
+        UI.narrative.textContent = nar || '';
+
+      } catch (err) {
+        console.error(err);
+        addMsg('❗ OpenAI call or pricing calc failed. Check network and file columns.', 'assistant');
+      }
+    });
+
+    // -------------------- Welcome --------------------
+    addMsg('👋 Upload your Price Book (THB). Then ask e.g. “quote f&b 2 branches + inventory + aggressive”. I’ll compute from your file and show list prices with a separate discount to the proposed total.');
+  </script>
+</body>
+</html>
