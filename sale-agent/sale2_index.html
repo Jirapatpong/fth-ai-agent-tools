@@ -20,7 +20,9 @@
   <div class="mx-auto max-w-6xl">
     <header class="mb-8">
       <h1 class="text-3xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
-      <p class="text-slate-400 mt-2">Upload your price book, then chat. The quote table uses your file data; unit prices shown are <b>THB</b>.</p>
+      <p class="text-slate-400 mt-2">
+        Upload your price book (THB), then chat. The agent answers using the data **only**. For suggestions/discounts it shows a single **Suggestion Price** column.
+      </p>
     </header>
 
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -47,13 +49,13 @@
     </section>
 
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-      <!-- AI Answer (free text) -->
+      <!-- AI Answer (from your prompt + data) -->
       <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
         <h2 class="text-xl font-semibold mb-4">3) AI Answer</h2>
-        <div id="results" class="text-slate-300">Results will appear here…</div>
+        <div id="results" class="prose prose-invert max-w-none text-slate-300">Results will appear here…</div>
       </div>
 
-      <!-- Deal Narrative (optional) -->
+      <!-- Deal Narrative (from totals, optional) -->
       <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
         <h2 class="text-xl font-semibold mb-4">4) Deal Narrative</h2>
         <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Narrative will appear here…</div>
@@ -69,7 +71,7 @@
           <button id="export-quote-pdf" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold">Export PDF</button>
         </div>
       </div>
-      <div id="quote-meta" class="text-sm text-slate-400 mb-3">Quote will be generated after each request (uses list prices from file, discount shown separately).</div>
+      <div id="quote-meta" class="text-sm text-slate-400 mb-3">Quote is computed from your file (THB list). Discounts shown separately by strategy.</div>
       <div id="quote-table-wrap" class="bg-slate-900 rounded-xl p-4 overflow-auto">
         <div class="text-slate-500 text-sm">No quote yet.</div>
       </div>
@@ -77,7 +79,7 @@
   </div>
 
   <script>
-    // -------------------- Helpers & UI --------------------
+    // ---------- UI helpers ----------
     const $ = (sel) => document.querySelector(sel);
     const UI = {
       file:$('#file-input'), fileInfo:$('#file-info'), preview:$('#data-preview'),
@@ -98,7 +100,7 @@
     function toInt(v){ const n=parseInt(v,10); return Number.isFinite(n)?n:0; }
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-    // -------------------- OpenAI (Direct) for intent & narrative --------------------
+    // ---------- OpenAI (Direct) ----------
     function decodeKey(b64){ try{ return atob(b64).trim(); }catch(e){ return ''; } }
     const OPENAI_KEY = decodeKey("c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=");
 
@@ -112,21 +114,14 @@
       const data = await res.json();
       return data.choices?.[0]?.message?.content ?? "";
     }
-    async function openaiJSON(system, user){
-      const txt = await openaiChat(
-        [{ role: "system", content: system }, { role: "user", content: user }],
-        { temperature: 0.1 }
-      );
-      const cleaned = txt.trim().replace(/^```json/i,"").replace(/^```/,"").replace(/```$/,"").trim();
-      return JSON.parse(cleaned);
-    }
 
-    // -------------------- Pricebook ingestion --------------------
+    // ---------- Pricebook ingestion ----------
     const state = { headers:[], rows:[], mapping:{}, parsedOK:false, lastCalc:null, lastParams:null };
+
     UI.file.addEventListener('change',(e)=>{
       const file=e.target.files[0]; if(!file) return;
       UI.fileInfo.textContent=`Loaded: ${file.name}`;
-      addMsg('📂 Price Book uploaded. I will use list prices from this file (THB).');
+      addMsg('📂 Price Book uploaded. I will use THB list prices from this file.');
 
       const reader=new FileReader();
       reader.onload=(ev)=>{
@@ -191,8 +186,8 @@
       };
     }
 
-    // helpers to get row or unit
-    function getCatalog(biz){ 
+    // ---------- Catalog helpers ----------
+    function getCatalog(biz){
       const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
       return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName));
     }
@@ -228,7 +223,7 @@
       return best;
     }
 
-    // -------------------- Strategies (same as earlier) --------------------
+    // ---------- Strategies ----------
     const STRATEGIES = {
       base: { key:'base', label:'Base (No discount)', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 },
       competitive: { key:'competitive', label:'Competitive (Win 60%)', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 },
@@ -236,30 +231,18 @@
     };
     function applyDiscount(amount,pct){ return Math.max(0, Math.round(amount*(1-pct))); }
 
-    // -------------------- Core calculator from FILE DATA --------------------
+    // ---------- Calculator (from FILE) ----------
     function calculateFromFile({biz='F&B', branches=1, optional={}, strategy='competitive'}){
       const catalog = getCatalog(biz==='Retail'?'Retail':'F&B');
 
       const hqRow = pickHQRow(catalog, branches, biz);
       const hq = hqRow?.unitPrice || 0;
-
-      const posRow = findRow(catalog,'POS Terminal');
-      const posU = posRow?.unitPrice || 0;
-
-      const invRow = findRow(catalog,'Inventory Module');
-      const invU = invRow?.unitPrice || 0;
-
-      const ioRow  = findRow(catalog,'iOrder');
-      const ioU = ioRow?.unitPrice || 0;
-
-      const kdsRow = findRow(catalog,'KDS');
-      const kdsU = kdsRow?.unitPrice || 0;
-
-      const supportRow = findRow(catalog,'Operation Support');
-      const supportU = supportRow?.unitPrice || 0;
-
-      const implRow = pickImplementationRow(catalog, branches);
-      const implU = implRow?.unitPrice || 0;
+      const posRow = findRow(catalog,'POS Terminal'); const posU = posRow?.unitPrice || 0;
+      const invRow = findRow(catalog,'Inventory Module'); const invU = invRow?.unitPrice || 0;
+      const ioRow  = findRow(catalog,'iOrder'); const ioU  = ioRow?.unitPrice || 0;
+      const kdsRow = findRow(catalog,'KDS'); const kdsU = kdsRow?.unitPrice || 0;
+      const supportRow = findRow(catalog,'Operation Support'); const supportU = supportRow?.unitPrice || 0;
+      const implRow = pickImplementationRow(catalog, branches); const implU = implRow?.unitPrice || 0;
 
       // List totals (THB)
       const itemsList = {
@@ -277,69 +260,80 @@
       const baseOptional = optList.reduce((s,x)=>s+x.total,0);
       const baseGrand = baseMandatory + baseOptional;
 
-      // Apply strategy discounts to get PROPOSED (grand total)
-      const strat = STRATEGIES[strategy] || STRATEGIES.competitive;
-      const d = strat.perItemDiscount;
+      // Three strategy totals (for DATA to the agent)
+      const stratBase = STRATEGIES.base, stratComp = STRATEGIES.competitive, stratAgg = STRATEGIES.aggressive;
+      const discountedBase = baseGrand; // no discount
 
-      const hqD = applyDiscount(itemsList.HQ.total, d.hq ?? d.default);
-      const posD = applyDiscount(itemsList.POS.total, d.pos ?? d.default);
-      const implD = applyDiscount(itemsList.IMPL.total, d.impl ?? d.default);
-
-      const freePct = Math.min(1,(strat.supportFreeMonths||0)/12);
-      const supportAfterPct = applyDiscount(itemsList.SUPPORT.total, d.support ?? d.default);
-      const supportD = applyDiscount(supportAfterPct, freePct);
-
-      let optD = 0;
-      if (optional.bundle && strat.bundleOptionalPrice!==null && baseOptional>0){
-        optD = strat.bundleOptionalPrice; // flat bundle price
-      } else {
-        const p = d.optional ?? d.default;
-        optD = optList.reduce((s,x)=> s + applyDiscount(x.total, p), 0);
+      function totalWithStrategy(strat){
+        const d=strat.perItemDiscount;
+        const hqD=applyDiscount(itemsList.HQ.total, d.hq ?? d.default);
+        const posD=applyDiscount(itemsList.POS.total, d.pos ?? d.default);
+        const implD=applyDiscount(itemsList.IMPL.total, d.impl ?? d.default);
+        const freePct=Math.min(1,(strat.supportFreeMonths||0)/12);
+        const supportAfterPct=applyDiscount(itemsList.SUPPORT.total, d.support ?? d.default);
+        const supportD=applyDiscount(supportAfterPct, freePct);
+        let optD=0;
+        if ((optList.length>0) && strat.bundleOptionalPrice!==null){
+          optD=strat.bundleOptionalPrice;
+        } else {
+          const p=d.optional ?? d.default;
+          optD=optList.reduce((s,x)=> s + applyDiscount(x.total, p), 0);
+        }
+        return (hqD+posD+implD+supportD+optD);
       }
+      const discountedComp = totalWithStrategy(stratComp); // Win 60
+      const discountedAgg = totalWithStrategy(stratAgg);   // Win 70
 
-      const discountedMandatory = hqD + posD + implD + supportD;
-      const discountedGrand = discountedMandatory + optD;
-
+      // Return calc (+ expose a simple data table for the agent)
       return {
         biz, branches, strategy,
-        listItems: [itemsList.HQ,itemsList.POS,itemsList.IMPL,itemsList.SUPPORT, ...optList],
+        listItems: [itemsList.HQ, itemsList.POS, itemsList.IMPL, itemsList.SUPPORT, ...optList],
         baseMandatory, baseOptional, baseGrand,
-        discountedMandatory, discountedGrand,
-        // for per-unit proposed if needed
-        proposed: {
-          HQ: hqD, POS: posD, IMPL: implD, SUPPORT: supportD, OPT: optD
-        },
-        optFlags: { ...optional },
-        names: { inv: invRow?.compName, io: ioRow?.compName, kds: kdsRow?.compName }
+        discountedBase, discountedComp, discountedAgg
       };
     }
 
-    // -------------------- Build quote JSON (list THB + discount line) --------------------
+    // ---------- Build DATA string for your agent prompt ----------
+    function buildParsedDataString(calc){
+      // Items
+      const header = ["Item","Category","Qty","Unit_THB","Total_THB"].join(" | ");
+      const sep = ["---","---","---","---","---"].join(" | ");
+      const itemLines = calc.listItems.map(x => [
+        x.name, x.category, toInt(x.qty), num(x.unit), num(x.total)
+      ].join(" | ")).join("\n");
+
+      // Summary & strategies (explicit labels for the agent to choose best)
+      const summary = [
+        "",
+        "### Summary (THB)",
+        `Base_Grand_Total | ${num(calc.baseGrand)}`,
+        `Win60_Proposed_Total | ${num(calc.discountedComp)}`,
+        `Win70_Proposed_Total | ${num(calc.discountedAgg)}`
+      ].join("\n");
+
+      return [
+        "### Line Items (THB)",
+        header, sep, itemLines,
+        summary
+      ].join("\n");
+    }
+
+    // ---------- Render Quote table ----------
     function buildQuoteFromCalc(calc){
       const qid = 'Q-' + new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14);
-      const items = calc.listItems.map(x => ({
-        name: x.name, category: x.category,
-        qty: toInt(x.qty), unit: num(x.unit), total: num(x.total)
-      }));
+      const items = calc.listItems.map(x => ({ name:x.name, category:x.category, qty:toInt(x.qty), unit:num(x.unit), total:num(x.total) }));
       const subtotal = items.reduce((s,x)=> s + num(x.total), 0);
-      const grand = calc.discountedGrand;
-      const discountAmount = Math.max(0, subtotal - grand);
-
-      const discounts = discountAmount > 0 ? [{ label: 'Strategic discount', amount: discountAmount }] : [];
-
+      const grand = calc.discountedComp; // default to Win60 unless user asks aggressive
+      const discountsAmount = Math.max(0, subtotal - grand);
       return {
         quoteId: qid,
-        customer: { name: null, businessType: (calc.biz==='Retail'?'Retail':'F&B'), branches: calc.branches },
+        customer: { name: null, businessType: calc.biz, branches: calc.branches },
         currency: 'THB',
-        items,
-        discounts,
-        subtotal,
-        grandTotal: grand,
-        notes: discountAmount>0 ? `Savings vs list: THB ${fmt(discountAmount)}` : ''
+        items, discounts: discountsAmount>0 ? [{label:'Strategic discount', amount:discountsAmount}] : [],
+        subtotal, grandTotal: grand, notes: discountsAmount>0 ? `Savings vs list: THB ${fmt(discountsAmount)}` : ''
       };
     }
 
-    // -------------------- Render quote table --------------------
     function renderQuote(q){
       if (!q || !Array.isArray(q.items) || !q.items.length){
         UI.quoteWrap.innerHTML = '<div class="text-slate-500 text-sm">No quote generated.</div>';
@@ -351,7 +345,6 @@
         <span class="ml-4 text-slate-300">Branches:</span> ${q.customer?.branches ?? '-'}
         <span class="ml-4 text-slate-300">Currency:</span> THB
       `;
-
       const rows = q.items.map(it => `
         <tr>
           <td>${escapeHtml(it.name || '')}</td>
@@ -359,16 +352,12 @@
           <td class="text-right">${toInt(it.qty)}</td>
           <td class="text-right">฿ ${fmt(it.unit)}</td>
           <td class="text-right">฿ ${fmt(it.total)}</td>
-        </tr>
-      `).join("");
-
+        </tr>`).join("");
       const discRows = (q.discounts||[]).map(d => `
         <tr>
           <td colspan="4" class="text-right text-slate-300">${escapeHtml(d.label||'Discount')}</td>
           <td class="text-right text-rose-300">- ฿ ${fmt(d.amount||0)}</td>
-        </tr>
-      `).join("");
-
+        </tr>`).join("");
       UI.quoteWrap.innerHTML = `
         <div id="quote-print-area">
           <div class="mb-3">
@@ -383,24 +372,17 @@
             </thead>
             <tbody>${rows}</tbody>
             <tfoot>
-              <tr>
-                <td colspan="4" class="text-right text-slate-300">Subtotal</td>
-                <td class="text-right">฿ ${fmt(q.subtotal||0)}</td>
-              </tr>
+              <tr><td colspan="4" class="text-right text-slate-300">Subtotal</td><td class="text-right">฿ ${fmt(q.subtotal||0)}</td></tr>
               ${discRows}
-              <tr>
-                <td colspan="4" class="text-right text-slate-300 font-semibold">Grand Total</td>
-                <td class="text-right font-semibold text-emerald-300">฿ ${fmt(q.grandTotal||0)}</td>
-              </tr>
+              <tr><td colspan="4" class="text-right text-slate-300 font-semibold">Grand Total</td><td class="text-right font-semibold text-emerald-300">฿ ${fmt(q.grandTotal||0)}</td></tr>
             </tfoot>
           </table>
           ${q.notes ? `<div class="mt-3 text-slate-300 text-sm">Notes: ${escapeHtml(q.notes)}</div>` : ''}
-        </div>
-      `;
+        </div>`;
       window.__LAST_QUOTE__ = q;
     }
 
-    // -------------------- Export CSV / PDF --------------------
+    // ---------- Export CSV / PDF ----------
     UI.exportQuoteCSV.addEventListener('click', ()=>{
       const q = window.__LAST_QUOTE__; if(!q){ addMsg('No quote to export yet.'); return; }
       const rows = [
@@ -412,84 +394,89 @@
         ['Item','Category','Qty','Unit (THB)','Total (THB)']
       ];
       (q.items||[]).forEach(it=> rows.push([it.name||'', it.category||'', toInt(it.qty), num(it.unit), num(it.total)]));
-      rows.push([]);
-      rows.push(['Subtotal','','','', num(q.subtotal)]);
+      rows.push([]); rows.push(['Subtotal','','','', num(q.subtotal)]);
       (q.discounts||[]).forEach(d=> rows.push([`Discount: ${d.label||''}`,'','','', -Math.abs(num(d.amount))]));
       rows.push(['Grand Total','','','', num(q.grandTotal)]);
       const csv = rows.map(r=>r.map(v=> typeof v==='number'? v : `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-      downloadBlob(csv, 'text/csv;charset=utf-8;', 'customer-quote.csv');
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='customer-quote.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 500);
     });
-
     UI.exportQuotePDF.addEventListener('click', ()=>{
-      const area = document.getElementById('quote-print-area');
-      if(!area){ addMsg('No quote to export yet.'); return; }
+      const area = document.getElementById('quote-print-area'); if(!area){ addMsg('No quote to export yet.'); return; }
       const opt = { margin:10, filename:'customer-quote.pdf', image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
       html2pdf().set(opt).from(area).save();
     });
 
-    function downloadBlob(text, mime, filename){
-      const blob=new Blob([text],{type:mime});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
-      setTimeout(()=>URL.revokeObjectURL(url), 500);
-    }
-
-    // -------------------- Intent parsing & narrative (AI) --------------------
+    // ---------- INTENT & PROMPTED ANSWER (uses YOUR prompt with DATA) ----------
     async function parseIntent(userText){
-      const system = `
-Return ONLY strict JSON (no code fences) with:
-{"biz":"F&B"|"Retail","branches":number,"optional":{"inventory":boolean,"iorder":boolean,"kds":boolean,"bundle":boolean},"strategy":"base"|"competitive"|"aggressive"}
-Defaults: biz="F&B", branches=1, optional false, strategy="competitive".
-"win 70" => aggressive; "base" => base; "bundle"/"pack" => optional.bundle=true.`;
-      const data = await openaiJSON(system, userText);
+      // minimal parser so we can compute calc (biz/branches/options/strategy)
+      const system = `Return ONLY strict JSON: {"biz":"F&B"|"Retail","branches":number,"optional":{"inventory":boolean,"iorder":boolean,"kds":boolean,"bundle":boolean},"strategy":"base"|"competitive"|"aggressive"}`;
+      const txt = await openaiChat([{role:"system",content:system},{role:"user",content:userText}], {temperature:0.1});
+      const cleaned = txt.trim().replace(/^```json/i,"").replace(/^```/,"").replace(/```$/,"").trim();
+      let data={}; try{ data=JSON.parse(cleaned); }catch{}
       return {
-        biz: (data.biz === "Retail") ? "Retail" : "F&B",
-        branches: Number.isFinite(+data.branches) && +data.branches > 0 ? +data.branches : 1,
+        biz: data.biz==="Retail"?"Retail":"F&B",
+        branches: Number.isFinite(+data.branches)&&+data.branches>0? +data.branches : 1,
         optional: {
           inventory: !!data?.optional?.inventory,
           iorder: !!data?.optional?.iorder,
           kds: !!data?.optional?.kds,
           bundle: !!data?.optional?.bundle,
         },
-        strategy: ["base","competitive","aggressive"].includes(data.strategy) ? data.strategy : "competitive",
+        strategy: ["base","competitive","aggressive"].includes(data.strategy)? data.strategy : "competitive",
       };
     }
 
-    async function writeNarrativeTH(context){
-      const sys = "Write a concise Thai sales narrative for a POS quote.";
-      const user = `สรุปข้อเสนอราคาแบบย่อ:\n- ประเภทธุรกิจ: ${context.biz}\n- จำนวนสาขา: ${context.branches}\n- กลยุทธ์: ${context.strategy}\n- ราคารวมก่อนส่วนลด: ${context.baseGrand}\n- ราคารวมเสนอ: ${context.discountedGrand}\n- ประหยัดรวม: ${context.baseGrand - context.discountedGrand}\nช่วยเขียนให้เหมาะส่งลูกค้า (ไม่ยาวเกินไป).`;
+    async function answerWithYourPrompt(userText, parsedDataAsString){
+      const systemPrompt = `You are an expert AI assistant analyzing data from a provided file. Your task is to answer questions based *only* on this data. Do not use external knowledge.
+RULES:
+1.  If your response contains structured data, you MUST format it as a Markdown table.
+2.  If the user asks for a price suggestion, recommendation, or a discount, you must choose the *single best* discount option from the data (e.g., 40%, 60%, 70% winning rate). In your new Markdown table, you must *only* include that single price column and rename its header to "Suggestion Price". Do not show other price columns in this case.
+
+Here is the data:
+--- DATA START ---
+${parsedDataAsString}
+--- DATA END ---
+Your answer must be based exclusively on the provided data. Now, answer the user's question.`;
+      return openaiChat([{role:"system",content:systemPrompt},{role:"user",content:userText}], {temperature:0.2});
+    }
+
+    async function writeNarrativeTH(calc){
+      const sys = "Write a concise Thai sales narrative for a POS quote based only on the given totals.";
+      const user = `Summary (THB):
+- Base (list): ${calc.baseGrand}
+- Win60 proposed: ${calc.discountedComp}
+- Win70 proposed: ${calc.discountedAgg}
+- Business type: ${calc.biz}
+- Branches: ${calc.branches}
+Keep it short.`;
       return openaiChat([{role:"system",content:sys},{role:"user",content:user}], {temperature:0.4});
     }
 
-    // -------------------- Chat flow --------------------
+    // ---------- Chat flow ----------
     UI.send.addEventListener('click', async ()=>{
       const text = UI.freeText.value.trim(); if (!text) return;
       if (!state.parsedOK){ addMsg('❗ Please upload a Price Book first.'); return; }
 
       addMsg(text,'user'); UI.freeText.value='';
       try {
-        // 1) Show assistant free text (optional for UX; not used for pricing)
-        const free = await openaiChat([
-          {role:"system",content:"You are a helpful sales assistant for POS pricing."},
-          {role:"user",content:text}
-        ]);
-        UI.results.textContent = free;
-        addMsg(free,'assistant');
-
-        // 2) Parse intent -> compute from FILE DATA (THB list) -> quote
+        // 1) Parse minimal intent -> compute from FILE
         const params = await parseIntent(text);
-        state.lastParams = params;
         const calc = calculateFromFile(params);
         state.lastCalc = calc;
 
+        // 2) Build parsed data string for YOUR prompt, then get AI Answer
+        const parsedDataAsString = buildParsedDataString(calc);
+        const aiAnswer = await answerWithYourPrompt(text, parsedDataAsString);
+        UI.results.innerHTML = aiAnswer;   // may include Markdown table (GitHub Pages won’t render MD; but most tables are readable as HTML text)
+        addMsg(aiAnswer,'assistant');
+
+        // 3) Build + render customer quote (default Win60; users can ask for 70% to switch)
         const quote = buildQuoteFromCalc(calc);
         renderQuote(quote);
 
-        // 3) Optional Thai narrative from totals
-        const nar = await writeNarrativeTH({
-          biz: params.biz, branches: params.branches, strategy: params.strategy,
-          baseGrand: calc.baseGrand, discountedGrand: calc.discountedGrand
-        });
+        // 4) Short Thai narrative based on totals
+        const nar = await writeNarrativeTH(calc);
         UI.narrative.textContent = nar || '';
 
       } catch (err) {
@@ -498,8 +485,8 @@ Defaults: biz="F&B", branches=1, optional false, strategy="competitive".
       }
     });
 
-    // -------------------- Welcome --------------------
-    addMsg('👋 Upload your Price Book (THB). Then ask e.g. “quote f&b 2 branches + inventory + aggressive”. I’ll compute from your file and show list prices with a separate discount to the proposed total.');
+    // ---------- Welcome ----------
+    addMsg('👋 Upload your Price Book (THB). Ask me for quotes or suggestions. I’ll answer using ONLY your data. For suggestions, I’ll show a single **Suggestion Price** column as required.');
   </script>
 </body>
 </html>
