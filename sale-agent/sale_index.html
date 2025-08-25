@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sales Estimator — ChatGPT Agent (Secure)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -24,7 +24,7 @@
       <h1 class="text-3xl md:text-4xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
       <p class="text-slate-400 mt-2">
         Upload your price book (.xlsx/.csv) then chat with the ChatGPT Agent.
-        <span class="text-slate-500">(Secure: no API key in browser; uses /chat and /narrative proxy endpoints.)</span>
+        <span class="text-slate-500">(Secure: static page calls your proxy; no API key in browser.)</span>
       </p>
     </header>
 
@@ -35,7 +35,7 @@
         <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
           <label class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold cursor-pointer">
             Browse (.xlsx/.csv)
-            <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" />
+            <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden"/>
           </label>
           <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
         </div>
@@ -47,15 +47,14 @@
       <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
         <h2 class="text-xl font-semibold mb-4">2) Chat with ChatGPT Agent</h2>
         <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col"></div>
-        <div id="quick-actions" class="mt-3 flex flex-wrap gap-2"></div>
         <div class="mt-3 flex gap-2">
-          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder="e.g. quote f&b 2 branches + inventory + aggressive"/>
+          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder='e.g. "quote f&b 2 branches + inventory + aggressive"'/>
           <button id="send-btn" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
         </div>
       </div>
     </section>
 
-    <!-- Results -->
+    <!-- Results & Narrative -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
       <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
         <h2 class="text-xl font-semibold mb-4">3) Quote Result</h2>
@@ -75,7 +74,11 @@
   </div>
 
   <script>
-    // ---------- DOM helpers
+    // ========= CONFIG (set your proxy origin here) =========
+    // e.g. "https://your-domain.example.com" (must host server.js there)
+    const PROXY_BASE = "https://YOUR-PROXY-ORIGIN";
+
+    // ========= Helpers =========
     const $ = (sel) => document.querySelector(sel);
 
     const state = { rows: [], headers: [], mapping: {}, parsedOK: false, lastCalc: null };
@@ -85,7 +88,6 @@
       fileInfo: $('#file-info'),
       preview: $('#data-preview'),
       chat: $('#chat-history'),
-      quick: $('#quick-actions'),
       freeText: $('#free-text'),
       send: $('#send-btn'),
       results: $('#results'),
@@ -95,18 +97,16 @@
 
     function addMsg(text, who='assistant'){
       const el=document.createElement('div');
-      el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
-      el.textContent=text;
+      el.className = `chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
+      el.textContent = text;
       UI.chat.appendChild(el);
       UI.chat.scrollTop = UI.chat.scrollHeight;
     }
-    function clearQuick(){ UI.quick.innerHTML=''; }
-    function addChip(label, onClick){ const b=document.createElement('button'); b.className='chip'; b.textContent=label; b.onclick=onClick; UI.quick.appendChild(b); }
 
-    // ---------- Upload + preview
+    // ========= Upload & Preview =========
     UI.file.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if(!file) return;
+      if (!file) return;
       UI.fileInfo.textContent = `Processing: ${file.name}…`;
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -122,11 +122,6 @@
         state.parsedOK = true;
         UI.fileInfo.textContent = `Loaded: ${file.name}`;
         addMsg('📘 Price book loaded. Type your request, e.g. "quote f&b 2 branches + inventory + aggressive"');
-        clearQuick();
-        addChip('Example: F&B 2 branches (aggressive)', ()=>{
-          UI.freeText.value = 'quote f&b 2 branches + inventory + aggressive';
-          UI.send.click();
-        });
       };
       reader.onerror = () => UI.fileInfo.textContent = 'Error reading file.';
       reader.readAsArrayBuffer(file);
@@ -135,16 +130,13 @@
     function renderPreview(matrix){
       const table=document.createElement('table'); table.className='w-full text-sm';
       const thead=document.createElement('thead'); const trh=document.createElement('tr');
-      for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th);}
+      for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th); }
       thead.appendChild(trh); table.appendChild(thead);
       const tbody=document.createElement('tbody');
       for(let i=1;i<Math.min(matrix.length,60);i++){
         const tr=document.createElement('tr');
         for(const cell of matrix[i]){
-          const td=document.createElement('td');
-          td.className='px-2 py-1 border border-slate-800';
-          td.textContent=(cell===undefined||cell===null)?'':cell;
-          tr.appendChild(td);
+          const td=document.createElement('td'); td.className='px-2 py-1 border border-slate-800'; td.textContent=(cell==null)?'':cell; tr.appendChild(td);
         }
         tbody.appendChild(tr);
       }
@@ -152,51 +144,41 @@
       UI.preview.innerHTML=''; UI.preview.appendChild(table);
     }
 
-    // ---------- Map likely columns
+    // ========= Column inference & catalog utils =========
     function inferMapping(){
       const H=state.headers.map(h=>h.trim().toLowerCase());
-      const findCol=(...cans)=>{const i=H.findIndex(h=>cans.some(c=>h.includes(c))); return i>=0?i:-1;};
-      state.mapping={
+      const findCol=(...cans)=>{ const i=H.findIndex(h=>cans.some(c=>h.includes(c))); return i>=0?i:-1; };
+      state.mapping = {
         bizType: findCol('restaurants sme','business type','retail sme'),
         compId: findCol('components id'),
         compName: findCol('components','table per store'),
         qty: findCol('qty'),
         mandatory: findCol('mandatory'),
         unitPrice: findCol('unit price'),
-        remark: findCol('remark')
+        remark: findCol('remark'),
       };
     }
     function toStr(v){ return (v==null)?'':String(v).trim(); }
-    function num(v){ const n=Number(String(v).replace(/[^0-9.\\-]/g,'')); return isFinite(n)?n:0; }
+    function num(v){ const n = Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
     function rowToObj(row){
       const m=state.mapping;
-      return {
-        bizType:toStr(row[m.bizType]),
-        compId:toStr(row[m.compId]),
-        compName:toStr(row[m.compName]),
-        qty:num(row[m.qty])||1,
-        mandatory:toStr(row[m.mandatory]).toUpperCase(),
-        unitPrice:num(row[m.unitPrice]),
-        remark:toStr(row[m.remark])
-      };
+      return { bizType:toStr(row[m.bizType]), compId:toStr(row[m.compId]), compName:toStr(row[m.compName]), qty:num(row[m.qty])||1, mandatory:toStr(row[m.mandatory]).toUpperCase(), unitPrice:num(row[m.unitPrice]), remark:toStr(row[m.remark]) };
     }
-
-    // ---------- Catalog helpers
     function getCatalog(biz){
-      const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
+      const rows = state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
       return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName));
     }
     function pickHQPrice(catalog, branches, biz){
-      const label=biz==='Retail'?'hq retail license':'hq f&b license';
-      const cands=catalog.filter(r=>r.compName.toLowerCase().includes(label));
+      const label = biz==='Retail' ? 'hq retail license' : 'hq f&b license';
+      const cands = catalog.filter(r=>r.compName.toLowerCase().includes(label));
       if(!cands.length) return 0;
       let best=cands[0];
       for(const r of cands){
         const name=r.compName.toLowerCase();
-        if(/1-10/.test(name) && branches<=10){best=r;break;}
-        if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;}
-        if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;}
-        if(/more than 30|\\b>\\s*30|\\bmore than/i.test(name) && branches>30){best=r;break;}
+        if(/1-10/.test(name) && branches<=10){ best=r; break; }
+        if(/11-20/.test(name) && branches>=11&&branches<=20){ best=r; break; }
+        if(/21-30/.test(name) && branches>=21&&branches<=30){ best=r; break; }
+        if(/more than 30|\b>\s*30|\bmore than/.test(name) && branches>30){ best=r; break; }
       }
       return best.unitPrice||0;
     }
@@ -206,53 +188,48 @@
       let best=cands[0];
       for(const r of cands){
         const name=r.compName.toLowerCase();
-        if(/1-10/.test(name) && branches<=10){best=r;break;}
-        if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;}
-        if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;}
-        if(/more than 30|\\b>\\s*30|\\bmore than/i.test(name) && branches>30){best=r;break;}
+        if(/1-10/.test(name) && branches<=10){ best=r; break; }
+        if(/11-20/.test(name) && branches>=11&&branches<=20){ best=r; break; }
+        if(/21-30/.test(name) && branches>=21&&branches<=30){ best=r; break; }
+        if(/more than 30|\b>\s*30|\bmore than/.test(name) && branches>30){ best=r; break; }
       }
       return best.unitPrice||0;
     }
     function findUnit(catalog, keyword){
       const row=catalog.find(r=>r.compName.toLowerCase().includes(keyword.toLowerCase()));
-      return row?row.unitPrice||0:0;
+      return row ? (row.unitPrice||0) : 0;
     }
 
-    // ---------- Strategy presets
-    const STRATEGIES={
-      base:{ key:'base', label:'Base (No discount)', notes:'List price before negotiation.',
-             perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 },
-      competitive:{ key:'competitive', label:'Competitive (Win 60%)', notes:'Balanced discount to win most bids.',
-             perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05},
-             bundleOptionalPrice:10000, supportFreeMonths:3 },
-      aggressive:{ key:'aggressive', label:'Aggressive (Win 70%)', notes:'Deeper discount to close tough deals fast.',
-             perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25},
-             bundleOptionalPrice:10000, supportFreeMonths:6 }
+    // ========= Strategies & calculator =========
+    const STRATEGIES = {
+      base: { key:'base', label:'Base (No discount)', notes:'List price before negotiation.', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 },
+      competitive: { key:'competitive', label:'Competitive (Win 60%)', notes:'Balanced discount to win most bids.', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 },
+      aggressive: { key:'aggressive', label:'Aggressive (Win 70%)', notes:'Deeper discount to close tough deals fast.', perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25}, bundleOptionalPrice:10000, supportFreeMonths:6 },
     };
     function applyDiscount(amount,pct){ return Math.max(0, Math.round(amount*(1-pct))); }
 
-    // ---------- Calculator
     function calculate({biz='F&B', branches=1, optional={}, strategy='competitive'}){
       const catalog = getCatalog(biz==='Retail'?'Retail':'F&B');
       const hq = pickHQPrice(catalog, branches, biz);
-      const pos = findUnit(catalog,'POS Terminal');
-      const invU = findUnit(catalog,'Inventory Module');
-      const ioU  = findUnit(catalog,'iOrder');
-      const kdsU = findUnit(catalog,'KDS');
-      const supportU = findUnit(catalog,'Operation Support');
-      const impl= pickImplementationPrice(catalog, branches);
+      const pos = findUnit(catalog, 'POS Terminal');
+      const invU = findUnit(catalog, 'Inventory Module');
+      const ioU  = findUnit(catalog, 'iOrder');
+      const kdsU = findUnit(catalog, 'KDS');
+      const supportU = findUnit(catalog, 'Operation Support');
+      const impl = pickImplementationPrice(catalog, branches);
 
-      const posTotal = pos*branches;
-      const invTotal = optional.inventory? invU*branches:0;
-      const ioTotal  = optional.iorder? ioU*branches:0;
-      const kdsTotal = optional.kds? kdsU*branches:0;
-      const supportTotal = supportU*branches;
+      const posTotal = pos * branches;
+      const invTotal = optional.inventory ? invU * branches : 0;
+      const ioTotal  = optional.iorder ? ioU * branches : 0;
+      const kdsTotal = optional.kds ? kdsU * branches : 0;
+      const supportTotal = supportU * branches;
 
       const baseMandatory = hq + posTotal + impl + supportTotal;
       const baseOptional  = invTotal + ioTotal + kdsTotal;
       const baseGrand     = baseMandatory + baseOptional;
 
-      const strat = STRATEGIES[strategy] || STRATEGIES.competitive; const d=strat.perItemDiscount;
+      const strat = STRATEGIES[strategy] || STRATEGIES.competitive;
+      const d = strat.perItemDiscount;
       const hqD=applyDiscount(hq,d.hq??d.default);
       const posD=applyDiscount(posTotal,d.pos??d.default);
       const implD=applyDiscount(impl,d.impl??d.default);
@@ -260,29 +237,24 @@
       const supportD=applyDiscount(applyDiscount(supportTotal,d.support??d.default), freePct);
 
       let optD=0;
-      if(optional.bundle && strat.bundleOptionalPrice!==null && (invTotal+ioTotal+kdsTotal)>0){
-        optD=strat.bundleOptionalPrice;
+      if (optional.bundle && strat.bundleOptionalPrice!==null && (invTotal+ioTotal+kdsTotal)>0) {
+        optD = strat.bundleOptionalPrice;
       } else {
         const p=d.optional??d.default;
-        optD=applyDiscount(invTotal,p)+applyDiscount(ioTotal,p)+applyDiscount(kdsTotal,p);
+        optD = applyDiscount(invTotal,p)+applyDiscount(ioTotal,p)+applyDiscount(kdsTotal,p);
       }
 
       const discountedMandatory = hqD + posD + implD + supportD;
       const discountedGrand = discountedMandatory + optD;
 
-      state.lastCalc = {
-        biz, branches, strategy: strat.label,
-        baseMandatory, baseOptional, baseGrand,
-        discountedMandatory, optD, discountedGrand
-      };
+      state.lastCalc = { biz, branches, strategy: strat.label, baseMandatory, baseOptional, baseGrand, discountedMandatory, optD, discountedGrand };
       renderResults(); renderNarrative();
     }
 
     function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
     function renderResults(){
       const c=state.lastCalc; if(!c){ UI.results.textContent=''; return; }
-      const save=Math.max(0,c.baseGrand-c.discountedGrand);
-      const savePct=c.baseGrand?Math.round(save/c.baseGrand*100):0;
+      const save=Math.max(0,c.baseGrand-c.discountedGrand); const savePct=c.baseGrand?Math.round(save/c.baseGrand*100):0;
       UI.results.innerHTML = `
         <div class="grid sm:grid-cols-3 gap-3">
           <div class="bg-slate-900 rounded-xl p-4">
@@ -302,7 +274,6 @@
           </div>
         </div>`;
     }
-
     function renderNarrative(){
       const c=state.lastCalc; if(!c){ UI.narrative.textContent=''; return; }
       UI.narrative.textContent = [
@@ -313,35 +284,42 @@
       ].join('\n');
     }
 
-    // ---------- Secure backend calls (no API key in browser)
+    // ========= Proxy calls (no API key in browser) =========
     async function callChatProxy(prompt){
-      const r = await fetch('/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+      const r = await fetch(`${PROXY_BASE}/chat`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ prompt })
       });
       if(!r.ok) throw new Error('Proxy /chat failed');
       return r.json(); // { params }
     }
     async function callNarrativeProxy(context){
-      const r = await fetch('/narrative', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+      const r = await fetch(`${PROXY_BASE}/narrative`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ context })
       });
       if(!r.ok) throw new Error('Proxy /narrative failed');
       return r.json(); // { text }
     }
 
-    // ---------- Chat handler
-    UI.send.addEventListener('click', async ()=>{
+    // ========= Health hint on load =========
+    (async()=>{
+      try {
+        await fetch(`${PROXY_BASE}/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:'ping' }) });
+      } catch {
+        setTimeout(()=>addMsg(`⚠️ Proxy unreachable at ${PROXY_BASE}. Deploy and set PROXY_BASE.`, 'assistant'), 400);
+      }
+    })();
+
+    // ========= Chat handler =========
+    UI.send.addEventListener('click', async () => {
       const text = UI.freeText.value.trim();
-      if(!text) return;
-      addMsg(text,'user'); UI.freeText.value='';
-      if(!state.parsedOK){ addMsg('❗ Please upload a Price Book first.'); return; }
+      if (!text) return;
+      addMsg(text, 'user'); UI.freeText.value='';
+      if (!state.parsedOK){ addMsg('❗ Please upload a Price Book first.'); return; }
       try {
         const { params } = await callChatProxy(text);
-        calculate(params); // local calc with uploaded pricebook
+        calculate(params); // compute using uploaded pricebook
         const c = state.lastCalc;
         const { text: nar } = await callNarrativeProxy({
           biz: params.biz,
@@ -357,11 +335,11 @@
         UI.narrative.textContent = nar || UI.narrative.textContent;
       } catch (e) {
         console.error(e);
-        addMsg('❗ Could not reach ChatGPT proxy (/chat or /narrative).');
+        addMsg('❗ Could not reach ChatGPT proxy (/chat or /narrative).', 'assistant');
       }
     });
 
-    // ---------- Export CSV
+    // ========= Export CSV =========
     UI.exportBtn.addEventListener('click', ()=>{
       const c = state.lastCalc; if(!c){ addMsg('Please compute a quote first.'); return; }
       const rows = [
@@ -371,7 +349,7 @@
         ['Base — Grand', c.baseGrand],
         ['Proposed — Mandatory', c.discountedMandatory],
         ['Proposed — Optional', c.optD],
-        ['Proposed — Grand', c.discountedGrand]
+        ['Proposed — Grand', c.discountedGrand],
       ];
       const csv = rows.map(r=>r.map(v=> typeof v==='number'? v : '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -380,8 +358,8 @@
       setTimeout(()=>URL.revokeObjectURL(url), 1000);
     });
 
-    // Welcome
-    addMsg('🤖 ChatGPT Agent ready — Upload your Price Book on the left, then type a request in natural language. (This page talks to /chat and /narrative on your server; no API key in the browser.)');
+    // ========= Welcome =========
+    addMsg('🤖 ChatGPT Agent ready — Upload your Price Book on the left, then type a request. This page calls your proxy at PROXY_BASE (no API key in browser).');
   </script>
 </body>
 </html>
