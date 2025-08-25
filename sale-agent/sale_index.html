@@ -159,7 +159,7 @@
         return atob(base64Key);
     }
 
-    // --- File Processing and Embedding ---
+    // --- File Processing and Embedding (with BATCHING) ---
     fileUpload.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -168,27 +168,45 @@
         sendButton.disabled = true;
         uploadStatus.textContent = 'Reading file...';
         uploadStatus.style.color = '#555';
+        
+        // Reset state from previous files
+        documentChunks = [];
+        chunkEmbeddings = [];
 
         const reader = new FileReader();
         reader.onload = async (e) => {
             const content = e.target.result;
             
-            // 1. Chunk the document
-            uploadStatus.textContent = 'Splitting document into chunks...';
-            documentChunks = chunkText(content, 500); // Chunk size in tokens (approx)
-
-            // 2. Get embeddings for each chunk
             try {
-                uploadStatus.textContent = `Creating embeddings for ${documentChunks.length} chunks... (This may take a moment)`;
-                chunkEmbeddings = await getEmbeddings(documentChunks);
+                // 1. Chunk the document
+                uploadStatus.textContent = 'Splitting document into chunks...';
+                documentChunks = chunkText(content, 500);
                 
-                uploadStatus.textContent = `✅ File processed: ${file.name}`;
+                // 2. Get embeddings for each chunk IN BATCHES
+                const BATCH_SIZE = 100; // Process 100 chunks per API call
+                const totalBatches = Math.ceil(documentChunks.length / BATCH_SIZE);
+                let allEmbeddings = [];
+
+                for (let i = 0; i < documentChunks.length; i += BATCH_SIZE) {
+                    const batch = documentChunks.slice(i, i + BATCH_SIZE);
+                    const currentBatchNum = (i / BATCH_SIZE) + 1;
+                    
+                    uploadStatus.textContent = `Processing batch ${currentBatchNum} of ${totalBatches}...`;
+                    
+                    const batchEmbeddings = await getEmbeddings(batch);
+                    allEmbeddings.push(...batchEmbeddings);
+                }
+                
+                chunkEmbeddings = allEmbeddings;
+                
+                uploadStatus.textContent = `✅ File processed: ${file.name} (${documentChunks.length} chunks created)`;
                 uploadStatus.style.color = 'green';
                 chatInput.disabled = false;
                 sendButton.disabled = false;
                 addMessageToChat('ai', `Great! I've processed the file "${file.name}". What would you like to know?`);
+
             } catch (error) {
-                uploadStatus.textContent = `❌ Error creating embeddings: ${error.message}`;
+                uploadStatus.textContent = `❌ Error processing file: ${error.message}`;
                 uploadStatus.style.color = 'red';
                 console.error(error);
             }
@@ -198,21 +216,21 @@
 
     /**
      * Splits a long text into smaller chunks based on paragraphs or sentence breaks.
-     * @param {string} text - The full text content.
-     * @param {number} chunkSize - The approximate size of each chunk in words.
-     * @returns {string[]} An array of text chunks.
      */
     function chunkText(text, chunkSize = 200) {
         const paragraphs = text.split(/\n\s*\n/);
         const chunks = [];
         let currentChunk = "";
         for (const paragraph of paragraphs) {
-            const words = paragraph.split(' ');
-            if (currentChunk.split(' ').length + words.length > chunkSize) {
-                if(currentChunk) chunks.push(currentChunk.trim());
+            if (!paragraph) continue;
+            const wordsInParagraph = paragraph.split(' ').length;
+            const wordsInChunk = currentChunk.split(' ').length;
+
+            if (wordsInChunk + wordsInParagraph > chunkSize && currentChunk) {
+                chunks.push(currentChunk.trim());
                 currentChunk = paragraph;
             } else {
-                currentChunk += "\n\n" + paragraph;
+                currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
             }
         }
         if (currentChunk) chunks.push(currentChunk.trim());
@@ -221,8 +239,6 @@
 
     /**
      * Calls the OpenAI API to get embeddings for an array of text chunks.
-     * @param {string[]} texts - An array of strings to embed.
-     * @returns {Promise<number[][]>} A promise that resolves to an array of embedding vectors.
      */
     async function getEmbeddings(texts) {
         const response = await fetch('https://api.openai.com/v1/embeddings', {
@@ -246,9 +262,6 @@
     
     /**
      * Calculates the cosine similarity between two vectors.
-     * @param {number[]} vecA - The first vector.
-     * @param {number[]} vecB - The second vector.
-     * @returns {number} The cosine similarity score.
      */
     function cosineSimilarity(vecA, vecB) {
         let dotProduct = 0.0;
@@ -259,6 +272,7 @@
             normA += vecA[i] * vecA[i];
             normB += vecB[i] * vecB[i];
         }
+        if (normA === 0 || normB === 0) return 0;
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
@@ -276,7 +290,6 @@
 
     /**
      * The main RAG function to get an answer from the AI.
-     * @param {string} question - The user's question.
      */
     async function getAIResponse(question) {
         const thinkingIndicator = showThinkingIndicator();
@@ -284,16 +297,17 @@
 
         try {
             // 1. Get embedding for the user's question
-            const questionEmbedding = await getEmbeddings([question]);
+            const questionEmbeddingArray = await getEmbeddings([question]);
+            const questionEmbedding = questionEmbeddingArray[0];
             
             // 2. Find the most relevant chunks from the document
             const similarities = chunkEmbeddings.map((chunkVec, i) => ({
                 index: i,
-                score: cosineSimilarity(questionEmbedding[0], chunkVec)
+                score: cosineSimilarity(questionEmbedding, chunkVec)
             }));
 
             similarities.sort((a, b) => b.score - a.score);
-            const topN = 3; // Get the top 3 most relevant chunks
+            const topN = 3; 
             const relevantChunks = similarities.slice(0, topN).map(sim => documentChunks[sim.index]);
             const context = relevantChunks.join("\n\n---\n\n");
 
@@ -350,7 +364,6 @@
         chatWindow.scrollTop = chatWindow.scrollHeight;
         return thinkingElement;
     }
-
 </script>
 </body>
 </html>
