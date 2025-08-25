@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -272,13 +272,12 @@
             (selectedAI === 'gemini') ? askGemini(userQuery) : askChatGPT(userQuery);
         }
 
+        // --- CORRECTED askGemini function ---
         async function askGemini(userQuery) {
             addMessageToChat(userQuery, 'user');
-            geminiChatHistory.push({ role: "user", parts: [{ text: userQuery }] });
             aiQuestion.value = '';
             toggleLoading(true);
             
-            // MODIFIED: Added new rule for suggestions
             const systemPrompt = `You are an expert AI assistant analyzing data from a provided file. Your task is to answer questions based *only* on this data. Do not use external knowledge.
 RULES:
 1.  If your response contains structured data, you MUST format it as a Markdown table.
@@ -290,25 +289,45 @@ ${parsedDataAsString}
 --- DATA END ---
 Your answer must be based exclusively on the provided data. Now, answer the user's question.`;
 
-            const messagesToSend = (geminiChatHistory.length === 1)
-                ? [{ role: 'user', parts: [{ text: `${systemPrompt}\nUser's Question: "${userQuery}"` }] }]
-                : geminiChatHistory;
+            // This is the message that will be added to the history.
+            let messageToPush;
+            
+            // If the history is empty, this is the first turn.
+            // We combine the system prompt with the user's first question.
+            if (geminiChatHistory.length === 0) {
+                const firstUserMessage = `${systemPrompt}\nUser's Question: "${userQuery}"`;
+                messageToPush = { role: "user", parts: [{ text: firstUserMessage }] };
+            } else {
+                // For subsequent turns, we only add the user's direct question.
+                messageToPush = { role: "user", parts: [{ text: userQuery }] };
+            }
+            
+            geminiChatHistory.push(messageToPush);
 
             try {
-                const payload = { contents: messagesToSend };
+                const payload = { contents: geminiChatHistory };
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+                
                 const response = await fetch(apiUrl, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload)
                 });
+
                 if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+                
                 const result = await response.json();
                 const aiResponse = result.candidates[0].content.parts[0].text;
+                
                 addMessageToChat(aiResponse, 'assistant');
+                // Add the AI's response to the history to continue the conversation
                 geminiChatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 addMessageToChat(`Sorry, I encountered an error: ${error.message}`, 'assistant');
-                geminiChatHistory.pop();
+                // If there was an error, remove the user's last message from history
+                geminiChatHistory.pop(); 
             } finally {
                 toggleLoading(false);
             }
@@ -320,7 +339,6 @@ Your answer must be based exclusively on the provided data. Now, answer the user
             aiQuestion.value = '';
             toggleLoading(true);
             
-            // MODIFIED: Added new rule for suggestions
             const systemPrompt = `You are an expert AI assistant analyzing data from a provided file. Your task is to answer questions based *only* on this data. Do not use external knowledge.
 RULES:
 1.  If your response contains structured data, you MUST format it as a Markdown table.
@@ -348,7 +366,8 @@ Your answer must be based exclusively on the provided data.`;
                 const aiResponse = data.choices[0].message.content;
                 addMessageToChat(aiResponse, 'assistant');
                 chatgptChatHistory.push({ role: 'assistant', content: aiResponse });
-            } catch (error) {
+            } catch (error)
+            {
                 console.error("ChatGPT API Error:", error);
                 addMessageToChat(`Sorry, I encountered an error: ${error.message}`, 'assistant');
                 chatgptChatHistory.pop();
@@ -390,7 +409,7 @@ Your answer must be based exclusively on the provided data.`;
             btnSpinner.classList.toggle('hidden', !isLoading);
         }
 
-        // --- 4. MODIFIED: Table Generation and Export Logic ---
+        // --- 4. Table Generation and Export Logic ---
         function handleGenerateTable(message) {
             const tableData = parseMarkdownTable(message);
             if (!tableData || tableData.length === 0) {
@@ -406,17 +425,14 @@ Your answer must be based exclusively on the provided data.`;
 
             let dataToDisplay = tableData;
 
-            // This is the initial, multi-price view. We need to filter it.
             if (hasTotalPrice && hasDiscountPrice) {
                 const discountIndices = headers.map((h, i) => h.includes('discount price') ? i : -1).filter(i => i !== -1);
-                // Create a new data array, omitting the discount columns
                 dataToDisplay = tableData.map(row => {
                     return row.filter((_, index) => !discountIndices.includes(index));
                 });
             }
-            // Otherwise, if it's a suggestion table or a simple table, display as is.
             
-            generatedTableData = dataToDisplay; // Store the final view for export
+            generatedTableData = dataToDisplay; 
             displayTable(dataToDisplay, generatedTableContainer);
             exportSection.classList.remove('hidden');
             exportBtn.disabled = false;
