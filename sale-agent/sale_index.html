@@ -176,7 +176,6 @@
         const btnSpinner = document.getElementById('btn-spinner');
         const geminiSelector = document.getElementById('gemini-selector');
         const chatgptSelector = document.getElementById('chatgpt-selector');
-        // NEW: Export section elements
         const exportSection = document.getElementById('export-section');
         const generatedTableContainer = document.getElementById('generated-table-container');
         const exportBtn = document.getElementById('export-btn');
@@ -188,7 +187,7 @@
         let geminiChatHistory = [];
         let chatgptChatHistory = [];
         let selectedAI = 'gemini';
-        let generatedTableData = []; // NEW: To store data for export
+        let generatedTableData = []; 
 
         // --- 1. File Handling Logic ---
         fileInput.addEventListener('change', handleFile);
@@ -220,7 +219,6 @@
         }
 
         // --- 2. Data Display Logic ---
-        // MODIFIED: Reusable function to display table in a container
         function displayTable(data, container) {
             if (!data || data.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">No data to display.</p>';
@@ -281,14 +279,14 @@
             aiQuestion.value = '';
             toggleLoading(true);
             
-            // MODIFIED: Updated system prompt
-            const systemPrompt = `You are an expert AI assistant specializing in analyzing data logs. Your task is to help users understand data and identify patterns.
-IMPORTANT: If your response contains structured data (like a budget, list of items with properties, or clear steps), you MUST format it as a Markdown table.
-Here is the data:
+            // CORRECTED: Restored strict prompt logic
+            const systemPrompt = `You are an expert AI assistant specializing in analyzing data logs from the provided file. Your primary task is to help users by answering questions based *only* on the historical data from the file. Do not use any external knowledge.
+IMPORTANT: If your response contains structured data that can be represented as a table (e.g., a budget, a list of items, troubleshooting steps), you MUST format it as a Markdown table.
+Here is the data from the log file:
 --- DATA START ---
 ${parsedDataAsString}
 --- DATA END ---
-Now, answer the user's question based only on the data provided.`;
+Now, carefully analyze the data above and answer the user's question. Your answer must be based exclusively on the provided data.`;
 
             const messagesToSend = (geminiChatHistory.length === 1)
                 ? [{ role: 'user', parts: [{ text: `${systemPrompt}\nUser's Question: "${userQuery}"` }] }]
@@ -320,10 +318,14 @@ Now, answer the user's question based only on the data provided.`;
             aiQuestion.value = '';
             toggleLoading(true);
             
-            // MODIFIED: Updated system prompt
-            const systemPrompt = `You are an expert AI assistant specializing in analyzing data logs. 
-IMPORTANT: If your response contains structured data (like a budget, list of items with properties, or clear steps), you MUST format it as a Markdown table.
-The data is provided below.\n--- DATA START ---\n${parsedDataAsString}\n--- DATA END ---`;
+            // CORRECTED: Restored strict prompt logic
+            const systemPrompt = `You are an expert AI assistant specializing in analyzing data logs from the provided file. Your primary task is to help users by answering questions based *only* on the historical data from the file. Do not use any external knowledge.
+IMPORTANT: If your response contains structured data that can be represented as a table (e.g., a budget, a list of items, troubleshooting steps), you MUST format it as a Markdown table.
+The data from the user's file is provided below.
+--- DATA START ---
+${parsedDataAsString}
+--- DATA END ---
+Your answer must be based exclusively on the provided data.`;
             
             const messagesToSend = [{ role: "system", content: systemPrompt }, ...chatgptChatHistory];
             try {
@@ -364,7 +366,6 @@ The data is provided below.\n--- DATA START ---\n${parsedDataAsString}\n--- DATA
                 messageDiv.className = 'chat-bubble chat-bubble-assistant';
                 messageDiv.textContent = message;
 
-                // NEW: Add "Generate Table" button
                 const generateTableBtn = document.createElement('button');
                 generateTableBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 3a1 1 0 000 2h14a1 1 0 100-2H3zM3 7a1 1 0 000 2h14a1 1 0 100-2H3zM3 11a1 1 0 100 2h14a1 1 0 100-2H3zM3 15a1 1 0 100 2h14a1 1 0 100-2H3z" /></svg>`;
                 generateTableBtn.className = 'p-2 bg-gray-600 hover:bg-blue-600 rounded-full text-white transition-colors';
@@ -384,7 +385,7 @@ The data is provided below.\n--- DATA START ---\n${parsedDataAsString}\n--- DATA
             btnSpinner.classList.toggle('hidden', !isLoading);
         }
 
-        // --- 4. NEW: Table Generation and Export Logic ---
+        // --- 4. Table Generation and Export Logic ---
         function handleGenerateTable(message) {
             const tableData = parseMarkdownTable(message);
             if (tableData && tableData.length > 0) {
@@ -392,7 +393,6 @@ The data is provided below.\n--- DATA START ---\n${parsedDataAsString}\n--- DATA
                 displayTable(tableData, generatedTableContainer);
                 exportSection.classList.remove('hidden');
                 exportBtn.disabled = false;
-                // Scroll to the new section
                 exportSection.scrollIntoView({ behavior: 'smooth' });
             } else {
                 generatedTableContainer.innerHTML = '<p class="text-red-400">Could not find a valid Markdown table in the AI response.</p>';
@@ -403,18 +403,16 @@ The data is provided below.\n--- DATA START ---\n${parsedDataAsString}\n--- DATA
 
         function parseMarkdownTable(text) {
             const lines = text.split('\n').filter(line => line.trim().startsWith('|'));
-            if (lines.length < 2) return null; // Needs at least header and separator
+            if (lines.length < 2) return null;
 
             const data = lines
-                // Skip the separator line (e.g., |---|---|)
                 .filter(line => !line.match(/^\|\s*[-:]+\s*\|/))
-                // Map each line to an array of cells
                 .map(line => 
                     line.split('|')
                         .map(cell => cell.trim())
-                        .filter((cell, index, arr) => index > 0 && index < arr.length - 1) // Remove first/last empty cells
+                        .filter((cell, index, arr) => index > 0 && index < arr.length - 1)
                 );
-            return data.filter(row => row.length > 0 && row.some(cell => cell)); // Ensure row is not empty
+            return data.filter(row => row.length > 0 && row.some(cell => cell));
         }
 
         exportBtn.addEventListener('click', () => {
