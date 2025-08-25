@@ -37,32 +37,40 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Table styling for both data preview and generated table */
+        /* --- MODIFIED: Table styling for more visualization --- */
         .data-table-container table {
             width: 100%;
             border-collapse: collapse;
         }
         .data-table-container th, .data-table-container td {
             border: 1px solid #374151;
-            padding: 8px 12px;
+            padding: 6px 10px; /* Reduced padding */
             text-align: left;
-            font-size: 0.875rem;
+            font-size: 0.8rem; /* Smaller font size */
         }
         .data-table-container th {
             background-color: #1f2937;
             font-weight: 600;
+            color: #9ca3af; /* Lighter gray for header text */
+            text-transform: uppercase; /* Uppercase headers */
+            letter-spacing: 0.05em; /* Spacing between letters */
         }
         .data-table-container tr:nth-child(even) {
             background-color: #1f2937;
         }
+        /* NEW: Hover effect for table rows */
+        .data-table-container tr:hover td {
+            background-color: #374151; /* Highlight row on hover */
+        }
         
-        /* Chat bubble styling */
+        /* --- MODIFIED: Chat bubble styling --- */
         .chat-bubble {
-            max-width: 90%; /* Adjusted for button */
+            max-width: 90%;
             padding: 0.75rem 1rem;
             border-radius: 0.75rem;
             white-space: pre-wrap;
             word-wrap: break-word;
+            font-size: 0.9rem; /* Slightly smaller font size */
         }
         .chat-bubble-user {
             background-color: #3b82f6; color: white;
@@ -272,7 +280,6 @@
             (selectedAI === 'gemini') ? askGemini(userQuery) : askChatGPT(userQuery);
         }
 
-        // --- CORRECTED askGemini function ---
         async function askGemini(userQuery) {
             addMessageToChat(userQuery, 'user');
             aiQuestion.value = '';
@@ -289,16 +296,12 @@ ${parsedDataAsString}
 --- DATA END ---
 Your answer must be based exclusively on the provided data. Now, answer the user's question.`;
 
-            // This is the message that will be added to the history.
             let messageToPush;
             
-            // If the history is empty, this is the first turn.
-            // We combine the system prompt with the user's first question.
             if (geminiChatHistory.length === 0) {
                 const firstUserMessage = `${systemPrompt}\nUser's Question: "${userQuery}"`;
                 messageToPush = { role: "user", parts: [{ text: firstUserMessage }] };
             } else {
-                // For subsequent turns, we only add the user's direct question.
                 messageToPush = { role: "user", parts: [{ text: userQuery }] };
             }
             
@@ -320,13 +323,11 @@ Your answer must be based exclusively on the provided data. Now, answer the user
                 const aiResponse = result.candidates[0].content.parts[0].text;
                 
                 addMessageToChat(aiResponse, 'assistant');
-                // Add the AI's response to the history to continue the conversation
                 geminiChatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
 
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 addMessageToChat(`Sorry, I encountered an error: ${error.message}`, 'assistant');
-                // If there was an error, remove the user's last message from history
                 geminiChatHistory.pop(); 
             } finally {
                 toggleLoading(false);
