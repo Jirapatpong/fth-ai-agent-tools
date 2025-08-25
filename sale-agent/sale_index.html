@@ -1,378 +1,197 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Estimator AI Assistant</title>
-    
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- SheetJS (XLSX) library for reading Excel/CSV files -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #111827; /* Dark blue-gray background */
-            color: #d1d5db; /* Light gray text */
-        }
-
-        /* Custom scrollbar for a more integrated look */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1f2937;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #4b5563;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #6b7280;
-        }
-
-        /* Spinner for loading states */
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #3b82f6; /* Blue */
-            width: 24px;
-            height: 24px;
-            animation: spin 1s ease-in-out infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Styling for the data table preview */
-        #data-preview table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        #data-preview th, #data-preview td {
-            border: 1px solid #374151;
-            padding: 8px 12px;
-            text-align: left;
-            font-size: 0.875rem;
-        }
-        #data-preview th {
-            background-color: #1f2937;
-            font-weight: 600;
-        }
-        #data-preview tr:nth-child(even) {
-            background-color: #1f2937;
-        }
-        
-        /* Styling for the AI chat bubbles */
-        .chat-bubble {
-            max-width: 80%;
-            padding: 0.75rem 1rem;
-            border-radius: 0.75rem;
-            margin-bottom: 0.5rem;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .chat-bubble-user {
-            background-color: #3b82f6; /* Blue */
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 0.25rem;
-        }
-        .chat-bubble-assistant {
-            background-color: #374151; /* Gray */
-            color: #d1d5db;
-            align-self: flex-start;
-            border-bottom-left-radius: 0.25rem;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Estimator — Competitive POS Pricing (Agent Mode)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+    .chat-bubble { max-width: 80%; padding: .75rem 1rem; border-radius: .75rem; margin-bottom: .5rem; white-space: pre-wrap; word-wrap: break-word; }
+    .chat-bubble-user { background: #2563eb; color: #fff; align-self: flex-end; border-bottom-right-radius: .25rem; }
+    .chat-bubble-assistant { background: #1f2937; color: #e5e7eb; align-self: flex-start; border-bottom-left-radius: .25rem; }
+    .chip { display:inline-flex; align-items:center; gap:.5rem; padding:.4rem .7rem; border-radius:9999px; border:1px solid #334155; background:#0f172a; cursor:pointer; }
+    .chip:hover { background:#111827; }
+  </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8">
+  <div class="mx-auto max-w-7xl">
+    <header class="mb-8">
+      <h1 class="text-3xl md:text-4xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
+      <p class="text-slate-400 mt-2">Agent-first experience. Upload a price book and I’ll ask the right questions, then produce Base / Competitive / Aggressive quotes automatically.</p>
+    </header>
 
-    <div class="container mx-auto max-w-7xl">
-        
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white">Sales Estimator AI Assistant</h1>
-            <p class="mt-2 text-lg text-gray-400">Upload a price book (.csv or .xlsx) to get real-time budget estimations.</p>
-        </header>
-
-        <!-- Step 1: File Upload -->
-        <div id="upload-section" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
-            <h2 class="text-xl font-semibold text-white mb-4">1. Upload Your Price Book</h2>
-            <div class="flex justify-center items-center border-2 border-dashed border-gray-600 rounded-lg p-8">
-                <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2 cursor-pointer">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                    Browse for File (.csv, .xlsx)
-                    <input type="file" id="file-input" class="hidden" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-                </label>
-            </div>
-            <div id="file-info" class="text-center mt-4 text-gray-400">No file selected.</div>
+    <!-- Upload & Preview + Agent Chat -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
+        <h2 class="text-xl font-semibold mb-4">1) Upload Price Book</h2>
+        <div class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
+          <label class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 12l4-4m0 0l4 4m-4-4v12"/></svg>
+            Browse (.xlsx/.csv)
+            <input id="file-input" type="file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" />
+          </label>
+          <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
         </div>
+        <div class="mt-4 overflow-auto max-h-[420px] bg-slate-900 rounded-xl p-3" id="data-preview"><p class="text-slate-500">Your data preview will appear here…</p></div>
+      </div>
 
-        <!-- Step 2: Data Preview and AI Chat -->
-        <div id="main-content" class="grid grid-cols-1 lg:grid-cols-2 gap-8 hidden">
-            <!-- Data Preview Section -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                <h2 class="text-xl font-semibold text-white mb-4">2. Price Book Preview</h2>
-                <div id="data-preview" class="overflow-auto max-h-[600px] bg-gray-900 rounded-md p-2">
-                    <p class="text-gray-500">Your data will be displayed here...</p>
-                </div>
-            </div>
-
-            <!-- AI Assistant Section -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col h-[700px]">
-                <h2 class="text-xl font-semibold text-white mb-4">3. Ask the Sales AI Assistant</h2>
-
-                <div id="chat-history" class="flex-grow overflow-y-auto mb-4 p-4 bg-gray-900 rounded-lg flex flex-col">
-                    <!-- Chat messages will be added here -->
-                    <div class="chat-bubble chat-bubble-assistant">Hello! I'm your sales assistant. Once the price book is loaded, ask me to estimate a budget. For example: "How much would the POS solution cost for a new cafe with 10 seats?"</div>
-                </div>
-                <div id="chat-input-area" class="flex gap-4">
-                    <input type="text" id="ai-question" class="flex-grow bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Type your question here..." disabled>
-                    <button id="ask-ai-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-not-allowed" disabled>
-                        <span id="btn-text">Ask Fujitsu's Agent</span>
-                        <div id="btn-spinner" class="spinner hidden"></div>
-                    </button>
-                </div>
-            </div>
+      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
+        <h2 class="text-xl font-semibold mb-4">2) Agent</h2>
+        <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col"></div>
+        <div id="quick-actions" class="mt-3 flex flex-wrap gap-2"></div>
+        <div class="mt-3 flex gap-2">
+          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder="Type an answer (or use the choices above)…"/>
+          <button id="send-btn" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
         </div>
+      </div>
+    </section>
 
-    </div>
+    <!-- Results -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
+        <h2 class="text-xl font-semibold mb-4">3) Quote Result</h2>
+        <div id="results" class="space-y-4">
+          <div class="text-slate-400">I’ll show results here after we collect enough info.</div>
+        </div>
+      </div>
 
-    <script>
-        // DOM Element References
-        const fileInput = document.getElementById('file-input');
-        const fileInfo = document.getElementById('file-info');
-        const mainContent = document.getElementById('main-content');
-        const dataPreview = document.getElementById('data-preview');
-        const chatHistory = document.getElementById('chat-history');
-        const aiQuestion = document.getElementById('ai-question');
-        const askAiBtn = document.getElementById('ask-ai-btn');
-        const btnText = document.getElementById('btn-text');
-        const btnSpinner = document.getElementById('btn-spinner');
+      <div class="bg-slate-800 rounded-2xl p-6 shadow flex flex-col">
+        <h2 class="text-xl font-semibold mb-4">4) Deal Narrative</h2>
+        <div id="narrative" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 text-sm text-slate-300">Generate after quote.</div>
+        <div class="mt-3 flex gap-2">
+          <button id="export-btn" class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-semibold">Export CSV</button>
+        </div>
+      </div>
+    </section>
+  </div>
 
-        // const GEMINI_API_KEY = "AIzaSyBOurSwEdhn6IHFpFr-BMhhp54iVsa8aYs";
-        const CHATGPT_API_KEY_B64 = "c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=";
-        
-        let parsedDataAsString = '';
-        // let geminiChatHistory = [];
-        let chatgptChatHistory = [];
+  <script>
+    // ---------- Helpers
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-        // --- 1. File Handling Logic ---
-        fileInput.addEventListener('change', handleFile);
+    const state = {
+      rows: [], headers: [], mapping: {}, parsedOK: false,
+      // agent-collected inputs
+      biz: null, branches: null, tables: null,
+      opt: { inventory:false, iorder:false, kds:false, bundle:false },
+      strategy: null,
+      lastCalc: null,
+      awaiting: null, // which question is active
+    };
 
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+    const UI = {
+      file: $('#file-input'),
+      fileInfo: $('#file-info'),
+      preview: $('#data-preview'),
+      chat: $('#chat-history'),
+      quick: $('#quick-actions'),
+      freeText: $('#free-text'),
+      send: $('#send-btn'),
+      results: $('#results'),
+      narrative: $('#narrative'),
+      exportBtn: $('#export-btn'),
+    };
 
-            fileInfo.textContent = `Processing file: ${file.name}...`;
-            const reader = new FileReader();
+    // ---------- Chat primitives
+    function addMsg(text, who='assistant'){ const el = document.createElement('div'); el.className = `chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`; el.textContent = text; UI.chat.appendChild(el); UI.chat.scrollTop = UI.chat.scrollHeight; }
+    function clearQuick(){ UI.quick.innerHTML=''; }
+    function addChip(label, onClick){ const b=document.createElement('button'); b.className='chip'; b.textContent=label; b.onclick=onClick; UI.quick.appendChild(b); }
 
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
-                if (jsonData.length === 0) {
-                    fileInfo.textContent = "Error: The selected file is empty.";
-                    return;
-                }
+    // ---------- File upload
+    UI.file.addEventListener('change', (e) => {
+      const file = e.target.files[0]; if(!file) return; UI.fileInfo.textContent = `Processing: ${file.name}…`;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const data = new Uint8Array(ev.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const first = wb.SheetNames[0]; const ws = wb.Sheets[first];
+        const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        if (!json.length) { UI.fileInfo.textContent = 'Error: Empty file.'; return; }
+        state.headers = json[0].map(x => (x || '').toString()); state.rows = json.slice(1);
+        renderPreview(json); inferMapping(); state.parsedOK = true; UI.fileInfo.textContent = `Loaded: ${file.name}`;
+        if (!state.biz) askBiz(); else askStrategy();
+      };
+      reader.onerror = () => UI.fileInfo.textContent = 'Error reading file.';
+      reader.readAsArrayBuffer(file);
+    });
 
-                parsedDataAsString = jsonData.map(row => row.join(', ')).join('\n');
-                displayTable(jsonData);
+    function renderPreview(matrix){
+      const table=document.createElement('table'); table.className='w-full text-sm';
+      const thead=document.createElement('thead'); const trh=document.createElement('tr');
+      for(const h of matrix[0]){ const th=document.createElement('th'); th.className='text-left bg-slate-900 px-2 py-2 border border-slate-700'; th.textContent=h; trh.appendChild(th);} thead.appendChild(trh); table.appendChild(thead);
+      const tbody=document.createElement('tbody');
+      for(let i=1;i<Math.min(matrix.length,60);i++){ const tr=document.createElement('tr'); for(const cell of matrix[i]){ const td=document.createElement('td'); td.className='px-2 py-1 border border-slate-800'; td.textContent=(cell===undefined||cell===null)?'':cell; tr.appendChild(td);} tbody.appendChild(tr);} table.appendChild(tbody);
+      UI.preview.innerHTML=''; UI.preview.appendChild(table);
+    }
 
-                fileInfo.textContent = `Successfully loaded: ${file.name}`;
-                mainContent.classList.remove('hidden');
-                aiQuestion.disabled = false;
-                askAiBtn.disabled = false;
-            };
+    function inferMapping(){ const H=state.headers.map(h=>h.trim().toLowerCase()); const findCol=(...cans)=>{const i=H.findIndex(h=>cans.some(c=>h.includes(c))); return i>=0?i:-1;}; state.mapping={ bizType:findCol('restaurants sme','business type','retail sme'), compId:findCol('components id'), compName:findCol('components','table per store'), qty:findCol('qty'), mandatory:findCol('mandatory'), unitPrice:findCol('unit price'), remark:findCol('remark') } }
+    function toStr(v){ return (v===undefined||v===null)?'':String(v).trim(); }
+    function num(v){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
+    function rowToObj(row){ const m=state.mapping; return { bizType:toStr(row[m.bizType]), compId:toStr(row[m.compId]), compName:toStr(row[m.compName]), qty:num(row[m.qty])||1, mandatory:toStr(row[m.mandatory]).toUpperCase(), unitPrice:num(row[m.unitPrice]), remark:toStr(row[m.remark]) }; }
 
-            reader.onerror = function() {
-                fileInfo.textContent = "Error reading the file.";
-            };
+    function getCatalog(biz){ const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase())); return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName)); }
+    function pickHQPrice(catalog, branches, biz){ const label=biz==='F&B'?'hq f&b license':'hq retail license'; const cands=catalog.filter(r=>r.compName.toLowerCase().includes(label)); if(!cands.length) return 0; let best=cands[0]; for(const r of cands){ const name=r.compName.toLowerCase(); if(/1-10/.test(name) && branches<=10){best=r;break;} if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;} if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;} if(/more than 30|\b>\s*30|\bmore than/i.test(name) && branches>30){best=r;break;} } return best.unitPrice||0; }
+    function pickImplementationPrice(catalog, branches){ const cands=catalog.filter(r=>/implementation/i.test(r.compName)); if(!cands.length) return 0; let best=cands[0]; for(const r of cands){ const name=r.compName.toLowerCase(); if(/1-10/.test(name) && branches<=10){best=r;break;} if(/11-20/.test(name) && branches>=11&&branches<=20){best=r;break;} if(/21-30/.test(name) && branches>=21&&branches<=30){best=r;break;} if(/more than 30|\b>\s*30|\bmore than/i.test(name) && branches>30){best=r;break;} } return best.unitPrice||0; }
+    function findUnit(catalog, keyword){ const row=catalog.find(r=>r.compName.toLowerCase().includes(keyword.toLowerCase())); return row?row.unitPrice||0:0; }
 
-            reader.readAsArrayBuffer(file);
-        }
+    // Strategy presets
+    const STRATEGIES={ base:{ key:'base', label:'Base (No discount)', notes:'Full list price. Good as a starting anchor before negotiations.', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 }, competitive:{ key:'competitive', label:'Competitive (Win 60%)', notes:'Balanced discounts aimed to win typical competitive bids.', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 }, aggressive:{ key:'aggressive', label:'Aggressive (Win 70%)', notes:'Deeper discounts to close tough deals quickly.', perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25}, bundleOptionalPrice:10000, supportFreeMonths:6 } };
 
-        // --- 2. Data Display Logic ---
-        function displayTable(data) {
-            if (!data || data.length === 0) {
-                dataPreview.innerHTML = '<p class="text-gray-500">No data to display.</p>';
-                return;
-            }
-            const table = document.createElement('table');
-            const headerRow = document.createElement('tr');
-            data[0].forEach(headerText => {
-                const th = document.createElement('th');
-                th.textContent = headerText;
-                headerRow.appendChild(th);
-            });
-            table.appendChild(headerRow);
+    function applyDiscount(amount, pct){ return Math.max(0, Math.round(amount*(1-pct))); }
 
-            for (let i = 1; i < data.length; i++) {
-                const row = document.createElement('tr');
-                data[i].forEach(cellText => {
-                    const td = document.createElement('td');
-                    td.textContent = cellText;
-                    row.appendChild(td);
-                });
-                table.appendChild(row);
-            }
-            dataPreview.innerHTML = '';
-            dataPreview.appendChild(table);
-        }
-        
-        // --- 3. AI Chat Logic ---
-        askAiBtn.addEventListener('click', handleAIChat);
-        aiQuestion.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') handleAIChat();
-        });
+    function calculate(){ if(!state.parsedOK){ addMsg('Please upload a price book first.'); return; } const biz=state.biz; const branches=state.branches||1; const catalog=getCatalog(biz==='Retail'?'Retail':'F&B'); const hq=pickHQPrice(catalog, branches, biz==='Retail'?'Retail':'F&B'); const pos=findUnit(catalog,'POS Terminal'); const optionalInv=findUnit(catalog,'Inventory Module'); const optionalIOrder=findUnit(catalog,'iOrder'); const optionalKDS=findUnit(catalog,'KDS'); const supportYear=findUnit(catalog,'Operation Support'); const impl=pickImplementationPrice(catalog, branches);
+      const posTotal=pos*branches; const invTotal=state.opt.inventory?optionalInv*branches:0; const iorderTotal=state.opt.iorder?optionalIOrder*branches:0; const kdsTotal=state.opt.kds?optionalKDS*branches:0; const supportTotal=supportYear*branches;
+      const baseMandatory=hq+posTotal+impl+supportTotal; const baseOptional=invTotal+iorderTotal+kdsTotal; const baseGrand=baseMandatory+baseOptional;
+      const strat=STRATEGIES[state.strategy||'competitive']; const d=strat.perItemDiscount; const hqD=applyDiscount(hq,d.hq??d.default); const posD=applyDiscount(posTotal,d.pos??d.default); const implD=applyDiscount(impl,d.impl??d.default); const supportDiscountPct=d.support??d.default; const freePct=Math.min(1,(strat.supportFreeMonths||0)/12); const supportD=applyDiscount(applyDiscount(supportTotal,supportDiscountPct),freePct);
+      let optD=0; if(state.opt.bundle && strat.bundleOptionalPrice!==null && (invTotal+iorderTotal+kdsTotal)>0){ optD=strat.bundleOptionalPrice; } else { const optPct=d.optional??d.default; optD=applyDiscount(invTotal,optPct)+applyDiscount(iorderTotal,optPct)+applyDiscount(kdsTotal,optPct); }
+      const discountedMandatory=hqD+posD+implD+supportD; const discountedGrand=discountedMandatory+optD;
+      state.lastCalc={ biz, branches, prices:{hq,pos,impl,supportYear,optionalInv,optionalIOrder,optionalKDS}, totals:{ baseMandatory, baseOptional, baseGrand, hqD, posD, implD, supportD, optD, discountedMandatory, discountedGrand }, stratKey:strat.key };
+      renderResults({ baseMandatory, baseOptional, baseGrand, discountedMandatory, optD, discountedGrand, strat });
+      renderNarrative();
+    }
 
-        function handleAIChat() {
-            const userQuery = aiQuestion.value.trim();
-            if (!userQuery) return;
-            if (!parsedDataAsString) {
-                alert("Please upload a price book file first.");
-                return;
-            }
-            askChatGPT(userQuery);
-        }
+    function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
 
-        // --- MODIFIED: System prompt for Sales Estimation ---
-        const systemPrompt = `You are an expert Sales and Budgeting AI assistant for a POS solutions company. Your primary function is to help a salesperson estimate the budget for a customer project based on a provided price book.
+    function renderResults({ baseMandatory, baseOptional, baseGrand, discountedMandatory, optD, discountedGrand, strat }){ const save=Math.max(0, baseGrand-discountedGrand); const savePct=baseGrand?Math.round(save/baseGrand*100):0; UI.results.innerHTML=`
+        <div class="grid sm:grid-cols-3 gap-3">
+          <div class="bg-slate-900 rounded-xl p-4"><div class="text-slate-400 text-sm">Base (List)</div><div class="text-2xl font-semibold mt-1">฿${fmt(baseGrand)}</div><div class="text-xs text-slate-500 mt-1">Mandatory ฿${fmt(baseMandatory)} • Optional ฿${fmt(baseOptional)}</div></div>
+          <div class="bg-slate-900 rounded-xl p-4"><div class="text-slate-400 text-sm">With Strategy</div><div class="text-2xl font-semibold mt-1">฿${fmt(discountedGrand)}</div><div class="text-xs text-slate-500 mt-1">Mandatory ฿${fmt(discountedMandatory)} • Optional ฿${fmt(optD)}</div></div>
+          <div class="bg-emerald-900/40 border border-emerald-700 rounded-xl p-4"><div class="text-emerald-300 text-sm">Savings (${strat.label})</div><div class="text-2xl font-semibold mt-1">฿${fmt(save)} <span class="text-base align-middle">(${savePct}%)</span></div><div class="text-xs text-emerald-300/80 mt-1">${strat.notes}</div></div>
+        </div>`; }
 
-        **Instructions:**
-        1.  **Analyze the Price Book:** The user has provided data from a CSV/Excel file which contains separate tables for different business types (e.g., 'F&B Business', 'Retail Business'). This is your ONLY source for product information and pricing.
-        2.  **Identify Business Type:** From the user's question (e.g., "new cafe," "small retail shop"), determine the correct business type. Use the corresponding table from the price book for all calculations. For example, if the user mentions "cafe" or "restaurant", use the 'F&B Business' table.
-        3.  **Calculate Mandatory Costs:** For the identified business type, find all components where the 'Mandatory' column is 'Y'. These items MUST be included in the proposal.
-        4.  **Incorporate User Quantities:** The user's request will specify quantities for certain items (e.g., "10 seats" implies 10 POS Terminals). Use this number to multiply the 'Unit Price' of the relevant components. For other mandatory items, assume the quantity is 1 unless specified otherwise.
-        5.  **Calculate Total Investment:** Sum the total price of all mandatory components and any optional components explicitly requested by the user.
-        6.  **Generate a Proposal:** Present the estimation as a clear, itemized proposal. Start with a summary of the total estimated cost. Then, provide a breakdown table with columns for 'Component', 'Quantity', and 'Total Price'.
+    function renderNarrative(){ const c=state.lastCalc; if(!c){ UI.narrative.textContent=''; return; } const strat=STRATEGIES[c.stratKey]; const lines=[ `Proposed quote for ${c.biz||'F&B'} — ${c.branches||1} store(s):`, `• Strategy: ${strat.label}.`, `• Base total: ฿${fmt(c.totals.baseGrand)}.`, `• Proposed total: ฿${fmt(c.totals.discountedGrand)} (savings ฿${fmt(Math.max(0, c.totals.baseGrand - c.totals.discountedGrand))}).`, `Mandatory: HQ + POS + Implementation + Support = ฿${fmt(c.totals.hqD + c.totals.posD + c.totals.implD + c.totals.supportD)}.`, `Optional: ฿${fmt(c.totals.optD)}.`, `Notes: ${strat.notes}` ]; UI.narrative.textContent = lines.join('\n'); }
 
-        Here is the data from the price book:
-        --- PRICE BOOK DATA START ---
-        ${() => parsedDataAsString}
-        --- PRICE BOOK DATA END ---
+    // ---------- Agent flow
+    function start(){ addMsg('สวัสดีครับ 🙌\nอัปโหลด Price Book (.xlsx/.csv) ด้านซ้ายก่อน แล้วผมจะถามข้อมูลเท่าที่จำเป็นเพื่อคำนวณใบเสนอราคาให้อัตโนมัติ (Base / Competitive / Aggressive).'); state.awaiting='upload'; showUploadHint(); }
+    function showUploadHint(){ clearQuick(); addChip('เลือกไฟล์ตอนนี้', ()=>$('#file-input').click()); }
 
-        Now, please answer the user's question based only on the data provided.`;
+    function addMsg(text, who='assistant'){ const el=document.createElement('div'); el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`; el.textContent=text; UI.chat.appendChild(el); UI.chat.scrollTop = UI.chat.scrollHeight; }
 
-        /*
-        async function askGemini(userQuery) {
-            addMessageToChat(userQuery, 'user');
-            geminiChatHistory.push({ role: "user", parts: [{ text: userQuery }] });
-            aiQuestion.value = '';
-            toggleLoading(true);
-            
-            const finalSystemPrompt = systemPrompt.replace('${() => parsedDataAsString}', parsedDataAsString);
+    function askBiz(){ clearQuick(); addMsg('ประเภทธุรกิจของลูกค้าเป็นแบบไหนครับ?'); ['F&B','Retail'].forEach(v=>addChip(v,()=>answerBiz(v))); state.awaiting='biz'; }
+    function answerBiz(v){ state.biz=v; addMsg(v,'user'); askBranches(); }
 
-            const messagesToSend = (geminiChatHistory.length === 1)
-                ? [{ role: 'user', parts: [{ text: `${finalSystemPrompt}\nUser's Question: "${userQuery}"` }] }]
-                : geminiChatHistory;
+    function askBranches(){ clearQuick(); addMsg('มีทั้งหมดกี่สาขาที่ต้องการเสนอราคาครับ?'); [1,2,3,5,10].forEach(n=>addChip(String(n),()=>answerBranches(n))); addChip('กำหนดเอง',()=>{ UI.freeText.placeholder='พิมพ์จำนวนสาขา…'; state.awaiting='branches'; }); }
+    function answerBranches(n){ state.branches=Number(n)||1; addMsg(String(state.branches),'user'); askOptional(); }
 
-            try {
-                const payload = { contents: messagesToSend };
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-                
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+    function askOptional(){ clearQuick(); addMsg('ต้องการโมดูลเสริมอะไรบ้างครับ? เลือกได้หลายอย่าง'); const togg=(k,label)=>addChip(label,()=>{ state.opt[k]=!state.opt[k]; addMsg((state.opt[k]?'✓ ':'✕ ')+label,'assistant'); }); togg('inventory','Inventory'); togg('iorder','iOrder'); togg('kds','KDS'); addChip('Bundle Optional @10,000',()=>{ state.opt.bundle=!state.opt.bundle; addMsg((state.opt.bundle?'✓ ':'✕ ')+'Bundle Optional','assistant'); }); addChip('ถัดไป ▶', askStrategy); state.awaiting='optional'; }
 
-                if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
-                const result = await response.json();
-                const aiResponse = result.candidates[0].content.parts[0].text;
-                
-                addMessageToChat(aiResponse, 'assistant');
-                geminiChatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+    function askStrategy(){ clearQuick(); addMsg('เลือกกลยุทธ์ราคาที่อยากนำเสนอก่อนครับ'); [['Base','base'],['Competitive (Win 60%)','competitive'],['Aggressive (Win 70%)','aggressive']].forEach(([label,key])=>addChip(label,()=>{ state.strategy=key; addMsg(label,'user'); confirmAndCalc(); })); state.awaiting='strategy'; }
 
-            } catch (error) {
-                console.error("Gemini API Error:", error);
-                addMessageToChat(`Sorry, I encountered an error with Gemini: ${error.message}`, 'assistant');
-                geminiChatHistory.pop();
-            } finally {
-                toggleLoading(false);
-            }
-        }
-        */
-        
-        async function askChatGPT(userQuery) {
-            addMessageToChat(userQuery, 'user');
-            chatgptChatHistory.push({ role: "user", content: userQuery });
-            aiQuestion.value = '';
-            toggleLoading(true);
-            
-            const finalSystemPrompt = systemPrompt.replace('${() => parsedDataAsString}', parsedDataAsString);
+    function confirmAndCalc(){ clearQuick(); const items=[ `Business Type: ${state.biz}`, `Branches: ${state.branches}`, `Optional: ${(Object.entries(state.opt).filter(([k,v])=>v && k!=='bundle').map(([k])=>k).join(', ')||'-') + (state.opt.bundle?' + Bundle':'')}`, `Strategy: ${STRATEGIES[state.strategy||'competitive'].label}` ]; addMsg('สรุปข้อมูล:\n- '+items.join('\n- ')); addChip('คำนวณเลย', ()=>{ calculate(); addMsg('คำนวณเรียบร้อย ✅'); afterCalcActions(); }); addChip('แก้ไขกลยุทธ์', askStrategy); addChip('แก้ไข Optional', askOptional); }
 
-            const messagesToSend = [
-                { role: "system", content: finalSystemPrompt },
-                ...chatgptChatHistory
-            ];
+    function afterCalcActions(){ clearQuick(); addChip('Export CSV', ()=>UI.exportBtn.click()); addChip('เริ่มใหม่', ()=>{ state.biz=null; state.branches=null; state.tables=null; state.opt={inventory:false,iorder:false,kds:false,bundle:false}; state.strategy=null; state.lastCalc=null; UI.results.innerHTML='<div class="text-slate-400">I’ll show results here after we collect enough info.</div>'; UI.narrative.textContent='Generate after quote.'; askBiz(); }); }
 
-            try {
-                const decodedApiKey = atob(CHATGPT_API_KEY_B64);
+    // Free text handler
+    UI.send.addEventListener('click', ()=>{ const v=UI.freeText.value.trim(); if(!v) return; addMsg(v,'user'); const a=state.awaiting; UI.freeText.value=''; if(a==='branches'){ const n=parseInt(v,10); if(!isFinite(n)||n<=0){ addMsg('กรุณาระบุจำนวนเป็นเลขจำนวนเต็มที่มากกว่า 0'); return; } answerBranches(n); } else { addMsg('เลือกจากตัวเลือกด้านบนเพื่อความรวดเร็วครับ'); } });
 
-                const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": "Bearer " + decodedApiKey
-                    },
-                    body: JSON.stringify({
-                        model: "gpt-4o-mini",
-                        messages: messagesToSend
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API request failed: ${errorData.error.message}`);
-                }
-
-                const data = await response.json();
-                const aiResponse = data.choices[0].message.content;
-
-                addMessageToChat(aiResponse, 'assistant');
-                chatgptChatHistory.push({ role: 'assistant', content: aiResponse });
-
-            } catch (error) {
-                console.error("ChatGPT API Error:", error);
-                addMessageToChat(`Sorry, I encountered an error with ChatGPT: ${error.message}`, 'assistant');
-                chatgptChatHistory.pop();
-            } finally {
-                toggleLoading(false);
-            }
-        }
-
-        function addMessageToChat(message, sender) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `chat-bubble ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`;
-            messageDiv.textContent = message;
-            chatHistory.appendChild(messageDiv);
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        }
-
-        function toggleLoading(isLoading) {
-            askAiBtn.disabled = isLoading;
-            if (isLoading) {
-                btnText.classList.add('hidden');
-                btnSpinner.classList.remove('hidden');
-            } else {
-                btnText.classList.remove('hidden');
-                btnSpinner.classList.add('hidden');
-            }
-        }
-
-    </script>
+    // Boot
+    start();
+  </script>
 </body>
 </html>
