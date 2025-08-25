@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sales Estimator — ChatGPT Agent (Secure)</title>
+  <title>Sales Estimator — ChatGPT Agent (Direct API, No Proxy)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,6 +16,7 @@
     .chat-bubble-assistant { background: #1f2937; color: #e5e7eb; align-self: flex-start; border-bottom-left-radius: .25rem; }
     .chip { display:inline-flex; align-items:center; gap:.5rem; padding:.4rem .7rem; border-radius:9999px; border:1px solid #334155; background:#0f172a; cursor:pointer; }
     .chip:hover { background:#111827; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#0f172a; border:1px solid #334155; border-radius:.5rem; padding:.15rem .35rem; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8">
@@ -23,8 +24,8 @@
     <header class="mb-8">
       <h1 class="text-3xl md:text-4xl font-bold text-white">Sales Estimator — Competitive POS Pricing</h1>
       <p class="text-slate-400 mt-2">
-        Upload your price book (.xlsx/.csv) then chat with the ChatGPT Agent.
-        <span class="text-slate-500">(Secure: static page calls your proxy; no API key in browser.)</span>
+        Upload your price book (.xlsx/.csv), then chat naturally.
+        <span class="text-slate-500">This page calls OpenAI directly (no proxy).</span>
       </p>
     </header>
 
@@ -39,8 +40,8 @@
           </label>
           <div id="file-info" class="mt-3 text-sm text-slate-400">No file selected.</div>
         </div>
-        <div class="mt-4 overflow-auto max-h-[420px] bg-slate-900 rounded-xl p-3" id="data-preview">
-          <p class="text-slate-500">Your data preview will appear here…</p>
+        <div id="data-preview" class="mt-4 overflow-auto max-h-[420px] bg-slate-900 rounded-xl p-3">
+          <p class="text-slate-500 text-sm">Your data preview will appear here…</p>
         </div>
       </div>
 
@@ -48,13 +49,16 @@
         <h2 class="text-xl font-semibold mb-4">2) Chat with ChatGPT Agent</h2>
         <div id="chat-history" class="flex-1 overflow-y-auto bg-slate-900 rounded-xl p-4 flex flex-col"></div>
         <div class="mt-3 flex gap-2">
-          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder='e.g. "quote f&b 2 branches + inventory + aggressive"'/>
+          <input id="free-text" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2" placeholder='Try: "quote f&b 2 branches + inventory + aggressive"'/>
           <button id="send-btn" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold">Send</button>
+        </div>
+        <div class="mt-3 text-xs text-slate-500">
+          Tip: you can say <span class="kbd">retail 5 stores base</span>, <span class="kbd">f&b 3 branches bundle</span>, or <span class="kbd">win 70%</span> (aggressive).
         </div>
       </div>
     </section>
 
-    <!-- Results & Narrative -->
+    <!-- Results -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
       <div class="lg:col-span-2 bg-slate-800 rounded-2xl p-6 shadow">
         <h2 class="text-xl font-semibold mb-4">3) Quote Result</h2>
@@ -74,39 +78,75 @@
   </div>
 
   <script>
-    // ========= CONFIG (set your proxy origin here) =========
-    // e.g. "https://your-domain.example.com" (must host server.js there)
-    const PROXY_BASE = "https://YOUR-PROXY-ORIGIN";
+    // ===================== OpenAI (Direct) — Demo Style =====================
+    // WARNING: Embedding keys in client code exposes them to users (demo only).
+    // You asked to follow the style that does not use a proxy; so we decode here.
+    function decodeKey(b64){ try { return atob(b64).trim(); } catch { return ""; } }
+    const OPENAI_KEY = decodeKey("c2stcHJvai1pUWtUQUxfMGh1MXFmU0k3N0gxRlF4STdCX2dUVnlMVERZREhRRllCTnlpdTl2em1ZOGc2YWhQc3JCVTcyYjl4NTBHOHNVOG14YlQzQmxia0ZKb25tM1RXaDlUVndjRHVoenpBclZsT1BMaUVGeDdBSXBjaUs2WmpqcDh4SUVDY2JZdmJObEY3b1BBbUF0YmktSkM3Q3hQd0NWd0E=");
 
-    // ========= Helpers =========
+    async function openaiChat(messages, {temperature=0.2, model="gpt-4o-mini"} = {}){
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_KEY}`
+        },
+        body: JSON.stringify({ model, temperature, messages })
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(()=> "");
+        throw new Error("OpenAI error: " + t);
+      }
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content ?? "";
+    }
+
+    async function openaiJSON(system, user, {model="gpt-4o-mini"} = {}){
+      // Ask the model to return STRICT JSON (no comments, no markdown)
+      const txt = await openaiChat(
+        [
+          { role: "system", content: system },
+          { role: "user", content: user }
+        ],
+        { temperature: 0.1, model }
+      );
+      // Strip code fences if present
+      const cleaned = txt.trim()
+        .replace(/^```json/i, "")
+        .replace(/^```/, "")
+        .replace(/```$/, "")
+        .trim();
+      try { return JSON.parse(cleaned); } catch (e) {
+        // Best-effort fallback: try to extract {...}
+        const m = cleaned.match(/\{[\s\S]*\}$/);
+        if (m) { try { return JSON.parse(m[0]); } catch {} }
+        throw new Error("Failed to parse JSON from model: " + cleaned);
+      }
+    }
+
+    // ===================== UI & State =====================
     const $ = (sel) => document.querySelector(sel);
-
-    const state = { rows: [], headers: [], mapping: {}, parsedOK: false, lastCalc: null };
-
+    const state = {
+      rows: [], headers: [], mapping: {}, parsedOK: false,
+      lastCalc: null,
+    };
     const UI = {
-      file: $('#file-input'),
-      fileInfo: $('#file-info'),
-      preview: $('#data-preview'),
-      chat: $('#chat-history'),
-      freeText: $('#free-text'),
-      send: $('#send-btn'),
-      results: $('#results'),
-      narrative: $('#narrative'),
-      exportBtn: $('#export-btn'),
+      file: $('#file-input'), fileInfo: $('#file-info'), preview: $('#data-preview'),
+      chat: $('#chat-history'), freeText: $('#free-text'), send: $('#send-btn'),
+      results: $('#results'), narrative: $('#narrative'), exportBtn: $('#export-btn'),
     };
 
     function addMsg(text, who='assistant'){
       const el=document.createElement('div');
-      el.className = `chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
-      el.textContent = text;
+      el.className=`chat-bubble ${who==='user'?'chat-bubble-user':'chat-bubble-assistant'}`;
+      el.textContent=text;
       UI.chat.appendChild(el);
       UI.chat.scrollTop = UI.chat.scrollHeight;
     }
 
-    // ========= Upload & Preview =========
+    // ===================== Upload & Preview =====================
     UI.file.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const file = e.target.files[0]; if (!file) return;
       UI.fileInfo.textContent = `Processing: ${file.name}…`;
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -144,10 +184,10 @@
       UI.preview.innerHTML=''; UI.preview.appendChild(table);
     }
 
-    // ========= Column inference & catalog utils =========
+    // ===================== Column Inference & Catalog =====================
     function inferMapping(){
-      const H=state.headers.map(h=>h.trim().toLowerCase());
-      const findCol=(...cans)=>{ const i=H.findIndex(h=>cans.some(c=>h.includes(c))); return i>=0?i:-1; };
+      const H = state.headers.map(h => h.trim().toLowerCase());
+      const findCol=(...cands)=>{ const i=H.findIndex(h=>cands.some(c=>h.includes(c))); return i>=0?i:-1; };
       state.mapping = {
         bizType: findCol('restaurants sme','business type','retail sme'),
         compId: findCol('components id'),
@@ -159,18 +199,26 @@
       };
     }
     function toStr(v){ return (v==null)?'':String(v).trim(); }
-    function num(v){ const n = Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
+    function num(v){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
     function rowToObj(row){
       const m=state.mapping;
-      return { bizType:toStr(row[m.bizType]), compId:toStr(row[m.compId]), compName:toStr(row[m.compName]), qty:num(row[m.qty])||1, mandatory:toStr(row[m.mandatory]).toUpperCase(), unitPrice:num(row[m.unitPrice]), remark:toStr(row[m.remark]) };
+      return {
+        bizType:toStr(row[m.bizType]),
+        compId:toStr(row[m.compId]),
+        compName:toStr(row[m.compName]),
+        qty:num(row[m.qty])||1,
+        mandatory:toStr(row[m.mandatory]).toUpperCase(),
+        unitPrice:num(row[m.unitPrice]),
+        remark:toStr(row[m.remark]),
+      };
     }
     function getCatalog(biz){
-      const rows = state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
+      const rows=state.rows.map(rowToObj).filter(r=>r.bizType && r.bizType.toLowerCase().includes(biz.toLowerCase()));
       return rows.filter(r=>r.compName && !/^maximum discount/i.test(r.compName));
     }
     function pickHQPrice(catalog, branches, biz){
       const label = biz==='Retail' ? 'hq retail license' : 'hq f&b license';
-      const cands = catalog.filter(r=>r.compName.toLowerCase().includes(label));
+      const cands = catalog.filter(r => r.compName.toLowerCase().includes(label));
       if(!cands.length) return 0;
       let best=cands[0];
       for(const r of cands){
@@ -183,7 +231,7 @@
       return best.unitPrice||0;
     }
     function pickImplementationPrice(catalog, branches){
-      const cands=catalog.filter(r=>/implementation/i.test(r.compName));
+      const cands = catalog.filter(r=>/implementation/i.test(r.compName));
       if(!cands.length) return 0;
       let best=cands[0];
       for(const r of cands){
@@ -200,13 +248,13 @@
       return row ? (row.unitPrice||0) : 0;
     }
 
-    // ========= Strategies & calculator =========
+    // ===================== Pricing Strategies & Calculator =====================
     const STRATEGIES = {
       base: { key:'base', label:'Base (No discount)', notes:'List price before negotiation.', perItemDiscount:{default:0}, bundleOptionalPrice:null, supportFreeMonths:0 },
       competitive: { key:'competitive', label:'Competitive (Win 60%)', notes:'Balanced discount to win most bids.', perItemDiscount:{default:0.10,hq:0.15,pos:0.10,impl:0.10,optional:0.15,support:0.05}, bundleOptionalPrice:10000, supportFreeMonths:3 },
       aggressive: { key:'aggressive', label:'Aggressive (Win 70%)', notes:'Deeper discount to close tough deals fast.', perItemDiscount:{default:0.20,hq:0.30,pos:0.20,impl:0.20,optional:0.20,support:0.25}, bundleOptionalPrice:10000, supportFreeMonths:6 },
     };
-    function applyDiscount(amount,pct){ return Math.max(0, Math.round(amount*(1-pct))); }
+    function applyDiscount(amount, pct){ return Math.max(0, Math.round(amount*(1-pct))); }
 
     function calculate({biz='F&B', branches=1, optional={}, strategy='competitive'}){
       const catalog = getCatalog(biz==='Retail'?'Retail':'F&B');
@@ -228,20 +276,19 @@
       const baseOptional  = invTotal + ioTotal + kdsTotal;
       const baseGrand     = baseMandatory + baseOptional;
 
-      const strat = STRATEGIES[strategy] || STRATEGIES.competitive;
-      const d = strat.perItemDiscount;
-      const hqD=applyDiscount(hq,d.hq??d.default);
-      const posD=applyDiscount(posTotal,d.pos??d.default);
-      const implD=applyDiscount(impl,d.impl??d.default);
+      const strat = STRATEGIES[strategy] || STRATEGIES.competitive; const d=strat.perItemDiscount;
+      const hqD=applyDiscount(hq, d.hq ?? d.default);
+      const posD=applyDiscount(posTotal, d.pos ?? d.default);
+      const implD=applyDiscount(impl, d.impl ?? d.default);
       const freePct=Math.min(1,(strat.supportFreeMonths||0)/12);
-      const supportD=applyDiscount(applyDiscount(supportTotal,d.support??d.default), freePct);
+      const supportD=applyDiscount(applyDiscount(supportTotal, d.support ?? d.default), freePct);
 
       let optD=0;
       if (optional.bundle && strat.bundleOptionalPrice!==null && (invTotal+ioTotal+kdsTotal)>0) {
         optD = strat.bundleOptionalPrice;
       } else {
-        const p=d.optional??d.default;
-        optD = applyDiscount(invTotal,p)+applyDiscount(ioTotal,p)+applyDiscount(kdsTotal,p);
+        const p=d.optional ?? d.default;
+        optD = applyDiscount(invTotal,p) + applyDiscount(ioTotal,p) + applyDiscount(kdsTotal,p);
       }
 
       const discountedMandatory = hqD + posD + implD + supportD;
@@ -254,7 +301,8 @@
     function fmt(n){ return Number(n||0).toLocaleString('en-TH'); }
     function renderResults(){
       const c=state.lastCalc; if(!c){ UI.results.textContent=''; return; }
-      const save=Math.max(0,c.baseGrand-c.discountedGrand); const savePct=c.baseGrand?Math.round(save/c.baseGrand*100):0;
+      const save=Math.max(0,c.baseGrand-c.discountedGrand);
+      const savePct=c.baseGrand?Math.round(save/c.baseGrand*100):0;
       UI.results.innerHTML = `
         <div class="grid sm:grid-cols-3 gap-3">
           <div class="bg-slate-900 rounded-xl p-4">
@@ -284,44 +332,70 @@
       ].join('\n');
     }
 
-    // ========= Proxy calls (no API key in browser) =========
-    async function callChatProxy(prompt){
-      const r = await fetch(`${PROXY_BASE}/chat`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ prompt })
-      });
-      if(!r.ok) throw new Error('Proxy /chat failed');
-      return r.json(); // { params }
-    }
-    async function callNarrativeProxy(context){
-      const r = await fetch(`${PROXY_BASE}/narrative`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ context })
-      });
-      if(!r.ok) throw new Error('Proxy /narrative failed');
-      return r.json(); // { text }
+    // ===================== Intent Parsing & Narrative (OpenAI) =====================
+    async function parseIntent(userText){
+      const system = `
+You are a pricing assistant for a POS solution. Extract STRICT JSON from the user's message (no extra text):
+{
+  "biz": "F&B" | "Retail",
+  "branches": number,             // >0
+  "optional": { "inventory": boolean, "iorder": boolean, "kds": boolean, "bundle": boolean },
+  "strategy": "base" | "competitive" | "aggressive"
+}
+Defaults if omitted: biz="F&B", branches=1, optional all false, strategy="competitive".
+If user mentions “win 70” => aggressive; mentions “base” => base.
+“bundle” or “pack” => optional.bundle=true.
+Return ONLY JSON.`;
+      const data = await openaiJSON(system, userText);
+      // Normalize
+      return {
+        biz: (data.biz === "Retail") ? "Retail" : "F&B",
+        branches: Number.isFinite(+data.branches) && +data.branches > 0 ? +data.branches : 1,
+        optional: {
+          inventory: !!data?.optional?.inventory,
+          iorder: !!data?.optional?.iorder,
+          kds: !!data?.optional?.kds,
+          bundle: !!data?.optional?.bundle,
+        },
+        strategy: ["base","competitive","aggressive"].includes(data.strategy) ? data.strategy : "competitive",
+      };
     }
 
-    // ========= Health hint on load =========
-    (async()=>{
-      try {
-        await fetch(`${PROXY_BASE}/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ prompt:'ping' }) });
-      } catch {
-        setTimeout(()=>addMsg(`⚠️ Proxy unreachable at ${PROXY_BASE}. Deploy and set PROXY_BASE.`, 'assistant'), 400);
-      }
-    })();
+    async function writeNarrative(context){
+      const system = "You write concise, sales-ready deal narratives in Thai. Keep it short and clear.";
+      const user = `สรุปข้อเสนอราคา:
+- ประเภทธุรกิจ: ${context.biz}
+- จำนวนสาขา: ${context.branches}
+- กลยุทธ์: ${context.strategy}
+- ราคารวมก่อนส่วนลด: ${context.baseGrand}
+- ราคารวมเสนอ: ${context.discountedGrand}
+- Mandatory: ${context.baseMandatory} -> ${context.discountedMandatory}
+- Optional (สุทธิ): ${context.optD}
+ช่วยเขียนสรุปกระชับพร้อมประโยชน์ลูกค้า และระบุจำนวนเงินที่ประหยัดรวม (base - proposed).`;
+      return openaiChat(
+        [{ role:"system", content: system }, { role:"user", content: user }],
+        { temperature: 0.4 }
+      );
+    }
 
-    // ========= Chat handler =========
+    // ===================== Chat Handler =====================
     UI.send.addEventListener('click', async () => {
       const text = UI.freeText.value.trim();
       if (!text) return;
       addMsg(text, 'user'); UI.freeText.value='';
-      if (!state.parsedOK){ addMsg('❗ Please upload a Price Book first.'); return; }
+      if (!state.parsedOK) { addMsg('❗ Please upload a Price Book first.'); return; }
+
       try {
-        const { params } = await callChatProxy(text);
-        calculate(params); // compute using uploaded pricebook
+        addMsg('🤖 Parsing your request…');
+        const params = await parseIntent(text);
+
+        // Compute using uploaded pricebook
+        calculate(params);
         const c = state.lastCalc;
-        const { text: nar } = await callNarrativeProxy({
+
+        // Ask model to craft narrative from totals
+        addMsg('📝 Drafting deal narrative…');
+        const nar = await writeNarrative({
           biz: params.biz,
           branches: params.branches,
           strategy: params.strategy,
@@ -333,15 +407,17 @@
           optD: c.optD
         });
         UI.narrative.textContent = nar || UI.narrative.textContent;
-      } catch (e) {
-        console.error(e);
-        addMsg('❗ Could not reach ChatGPT proxy (/chat or /narrative).', 'assistant');
+        addMsg('✅ Quote generated.', 'assistant');
+
+      } catch (err) {
+        console.error(err);
+        addMsg('❗ OpenAI call failed. Check network and API key.', 'assistant');
       }
     });
 
-    // ========= Export CSV =========
-    UI.exportBtn.addEventListener('click', ()=>{
-      const c = state.lastCalc; if(!c){ addMsg('Please compute a quote first.'); return; }
+    // ===================== Export CSV =====================
+    UI.exportBtn.addEventListener('click', () => {
+      const c = state.lastCalc; if (!c) { addMsg('Please compute a quote first.'); return; }
       const rows = [
         ['Item','Amount (THB)'],
         ['Base — Mandatory', c.baseMandatory],
@@ -351,15 +427,15 @@
         ['Proposed — Optional', c.optD],
         ['Proposed — Grand', c.discountedGrand],
       ];
-      const csv = rows.map(r=>r.map(v=> typeof v==='number'? v : '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const csv = rows.map(r => r.map(v => typeof v==='number' ? v : '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'quote.csv'; a.click();
       setTimeout(()=>URL.revokeObjectURL(url), 1000);
     });
 
-    // ========= Welcome =========
-    addMsg('🤖 ChatGPT Agent ready — Upload your Price Book on the left, then type a request. This page calls your proxy at PROXY_BASE (no API key in browser).');
+    // ===================== Welcome =====================
+    addMsg('🤖 ChatGPT Agent ready — Upload your Price Book on the left, then type a request in natural language. (Direct API mode; no proxy.)');
   </script>
 </body>
 </html>
