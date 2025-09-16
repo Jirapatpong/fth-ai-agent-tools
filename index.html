@@ -4,18 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Log Analyzer & Sales Dashboard</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter for the main UI, Fira Code for the text areas -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- highlight.js for syntax highlighting JSON within logs -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     
-    <!-- Chart.js for the dashboard -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
@@ -76,6 +72,7 @@
         .log-level-INFO { color: #569cd6; font-weight: bold; }
         .log-level-WARN { color: #dcdcaa; font-weight: bold; }
         .log-level-ERROR { color: #f44747; font-weight: bold; }
+        .log-level-DEBUG { color: #b5cea8; font-weight: bold; } /* Added DEBUG color */
         .log-source { color: #c586c0; }
         .log-message { color: #d4d4d4; }
         .log-message .hljs {
@@ -197,7 +194,6 @@
             </div>
         </div>
 
-        <!-- Dashboard Section -->
         <div id="dashboard-section" class="mt-8 hidden">
             <h2 class="text-3xl font-bold text-white mb-6 text-center">Sales Dashboard</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -213,7 +209,6 @@
             </div>
         </div>
         
-        <!-- AI Analysis Section -->
         <div class="mt-8">
             <h2 class="text-3xl font-bold text-white mb-6 text-center">Ask an AI About This Log</h2>
             <div class="flex flex-col items-center mb-4 gap-4">
@@ -242,7 +237,6 @@
 
     </div>
 
-    <!-- Prettier library for formatting JSON -->
     <script src="https://unpkg.com/prettier@2.8.8/standalone.js"></script>
     <script src="https://unpkg.com/prettier@2.8.8/parser-babel.js"></script>
 
@@ -333,16 +327,23 @@
                 const lines = sourceCode.replace(/\r\n/g, '\n').split('\n');
                 let finalHtml = '';
                 let finalPlainText = '';
-                const logRegex = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3})\s+(\[\d+\])\s+(INFO|WARN|ERROR|DEBUG)\s+([\w\s.()\[\]-]+?)\s+[–-]\s+(.*)$/;
+                // --- MODIFIED: New regex for the pipe-separated format ---
+                const logRegex = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3})\|(DEBUG|INFO|WARN|ERROR)\|([^|]+)\|([^|]+)\|(\d+)\|(.*)$/;
 
                 lines.forEach(line => {
+                    // --- Use the new regex ---
                     const match = line.match(logRegex);
                     if (match) {
-                        const [ , timestamp, thread, level, source, message ] = match;
+                        // --- MODIFIED: Capture new fields from the new log format ---
+                        const [ , timestamp, level, sourceFile, methodName, lineNumber, message ] = match;
+                        
+                        // Re-create the source string with the new details
+                        const source = `${sourceFile} | ${methodName}():${lineNumber}`;
                         const correctedMessage = decodeTIS620(message);
                         let messageHtml = '';
                         let messagePlainText = correctedMessage;
                         const jsonMatch = correctedMessage.match(/:\s*(\{.*\}|\[.*\])$/);
+
                         if (jsonMatch && jsonMatch[1]) {
                             try {
                                 const jsonString = jsonMatch[1];
@@ -357,11 +358,12 @@
                         }
                         
                         let lineClass = 'log-line';
-                        if (correctedMessage.includes('Request :')) lineClass += ' log-line-request';
-                        else if (correctedMessage.includes('Response :')) lineClass += ' log-line-response';
+                        if (correctedMessage.includes('Req :')) lineClass += ' log-line-request';
+                        else if (correctedMessage.includes('Res :')) lineClass += ' log-line-response';
 
-                        finalHtml += `<div class="${lineClass}"><span class="log-timestamp">${timestamp}</span> <span class="log-thread">${thread}</span> <span class="log-level-${level}">${level}</span> <span class="log-source">${source}</span> <span class="log-message">– ${messageHtml}</span></div>`;
-                        finalPlainText += `${timestamp} ${thread} ${level} ${source} – ${messagePlainText}\n`;
+                        // --- MODIFIED: Updated HTML structure with new 'source' ---
+                        finalHtml += `<div class="${lineClass}"><span class="log-timestamp">${timestamp.replace('.',',')}</span> <span class="log-level-${level}">${level}</span> <span class="log-source">${source}</span> <span class="log-message">| ${messageHtml}</span></div>`;
+                        finalPlainText += `${timestamp.replace('.',',')} ${level} ${source} | ${messagePlainText}\n`;
                     } else {
                         const correctedLine = decodeTIS620(line);
                         finalHtml += `<div class="log-line">${escapeHtml(correctedLine)}</div>`;
