@@ -75,6 +75,17 @@
         flex: 1 1 100%;
         min-width: unset;
     }
+    /* Report KPI Spacing Fix */
+    .kpis {
+        grid-template-columns: 1fr 1fr; /* Two columns on mobile */
+        gap: 8px; /* Slightly tighter gap */
+    }
+    .kpi {
+        padding: 8px;
+    }
+    .kpi .val {
+        font-size: var(--fs-lg); /* Slightly reduced font size for mobile grids */
+    }
   }
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
     padding:4px calc(8px + var(--inset)); display:flex;gap:4px;justify-content:space-around}
@@ -107,6 +118,15 @@
   .login-card{width:100%;max-width:460px}
   /* Style for camera preview on scan sheet */
   #cam{width:100%;max-height:200px;border-radius:10px;background:#000; display: block; margin-top: 8px;}
+  /* Target Bin UI for Plan Tab */
+  #binTargetControls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+  }
+  #binTargetControls .card {
+      padding: 10px;
+  }
 </style>
 <!-- Load QuaggaJS for barcode detection simulation -->
 <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
@@ -504,7 +524,7 @@ function renderPlan(){
       </div>
 
       <div class="card" ${hasPlan ? '' : 'style="display:none"'}>
-        <h3><span class="ico-inline" data-ic="boxes"></span> 1.3) Bin Targets (Expected SKUs)</h3>
+        <h3><span class="ico-inline" data-ic="boxes"></span> 1.3) Bin Targets (Set Expected SKUs)</h3>
         ${renderBinTargets()}
       </div>
     </div>`;
@@ -526,47 +546,84 @@ function renderRoutesTable(){
 
 // Bin Targets: use dropdown config values (Point 4)
 const EXPECTED_OPTIONS = [0, 1, 2, 5, 10];
-function getExpectedSkusSelect(index, currentValue) {
-    let options = EXPECTED_OPTIONS.map(val => 
-        `<option value="${val}" ${val === currentValue ? 'selected' : ''}>${val}</option>`
-    ).join('');
-    return `<select onchange="setBinExpected(${index}, this.value)">${options}</select>`;
-}
 
 function renderBinTargets(){
   if(!state.currentPlanId) return '<div class="muted">Create routes to generate bins.</div>';
   const pid = state.currentPlanId;
   const bins = allBinsOfPlan(pid);
   if(!bins.length) return '<div class="muted">No bins yet. Create routes to generate bins.</div>';
-  const rows = bins.map((b,i)=>{
-    // Get expected SKUs (using expectedSkus property, falling back to older expectedItems)
-    const expected = (b.expectedSkus!=null? b.expectedSkus : (b.expectedItems!=null?b.expectedItems:1));
-    const skuCnt = distinctSkuCountForBin(pid, b.binId);
-    const qtySum = sumQtyForBin(pid, b.binId);
-    // Logic for completion: if expected > 0, done if counted >= expected. If expected = 0 (no target), done if counted > 0.
-    const done = expected>0 ? skuCnt>=expected : skuCnt>0;
-    return `<tr>
-      <td data-label="Bin">${esc(b.section)} • ${esc(b.binId)}</td>
-      <td data-label="Expected SKUs">${getExpectedSkusSelect(i, expected)}</td>
-      <td data-label="Counted SKUs">${skuCnt}</td>
-      <td data-label="Qty Sum">${qtySum}</td>
-      <td data-label="Status"><span class="pill" style="border-color:${done?'#86efac':'#cbd5e1'};background:${done?'#ecfdf5':'#fff'}">${done?'Completed':'Pending'}</span></td>
-    </tr>`;
-  }).join('');
-  return `<div class="row"><button class="btn" onclick="setAllBinsExpected(1)">Set all to 1</button><button class="btn" onclick="setAllBinsExpected(0)">Set all to 0 (no target)</button></div>
-          <table><thead><tr><th>Bin</th><th>Expected SKUs</th><th>Counted SKUs</th><th>Qty Sum</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  
+  const currentBinId = document.getElementById('bt-bin-select')?.value || bins[0].binId;
+  const currentBin = bins.find(b => b.binId === currentBinId);
+  
+  const binsHtml = bins.map(b => 
+    `<option value="${b.binId}" ${b.binId === currentBinId ? 'selected' : ''}>${b.section} • ${b.binId}</option>`
+  ).join('');
+
+  // Find the original index of the bin to retrieve its actual state reference later
+  let currentBinIndex = -1;
+  if(currentBin) {
+      currentBinIndex = state.bins.findIndex(b => b.planId === pid && b.binId === currentBinId && b.routeKey === currentBin.routeKey);
+  }
+
+  // Get current expected value
+  const expectedVal = currentBin ? (currentBin.expectedSkus != null ? currentBin.expectedSkus : (currentBin.expectedItems != null ? currentBin.expectedItems : 1)) : 0;
+  
+  // Generate expected SKU options dropdown
+  const expectedOptions = EXPECTED_OPTIONS.map(val => 
+    `<option value="${val}" ${val === expectedVal ? 'selected' : ''}>${val}</option>`
+  ).join('');
+
+  const skuCnt = currentBin ? distinctSkuCountForBin(pid, currentBinId) : 0;
+  const qtySum = currentBin ? sumQtyForBin(pid, currentBinId) : 0;
+  const isDone = currentBin ? (expectedVal > 0 ? skuCnt >= expectedVal : skuCnt > 0) : false;
+  const statusPill = `<span class="pill" style="border-color:${isDone?'#86efac':'#cbd5e1'};background:${isDone?'#ecfdf5':'#fff'}">${isDone?'Completed':'Pending'}</span>`;
+
+
+  return `<div id="binTargetControls">
+    <div class="row">
+        <div style="flex:1;"><label>Select Bin</label><select id="bt-bin-select" onchange="renderPlan()">${binsHtml}</select></div>
+    </div>
+    <div class="row">
+        <div style="flex:1;">
+            <label>Expected SKUs</label>
+            <select id="bt-expected-select">${expectedOptions}</select>
+        </div>
+        <div style="align-self:end;">
+            <button class="btn primary" onclick="saveBinTarget('${currentBinId}', document.getElementById('bt-expected-select').value)"><span class="ico-inline" data-ic="tick"></span> Set Target</button>
+        </div>
+    </div>
+    <div class="card" style="margin-top: -10px;">
+        <div class="muted">Status for ${currentBinId || '—'}</div>
+        <div style="font-size: var(--fs-lg); font-weight: 600;">${statusPill}</div>
+        <div class="row" style="margin-top: 5px;">
+             <div style="flex:1;"><div class="muted">Counted SKUs</div><div>${skuCnt}</div></div>
+             <div style="flex:1;"><div class="muted">Total Qty</div><div>${qtySum}</div></div>
+        </div>
+    </div>
+    <div class="row">
+        <button class="btn" onclick="setAllBinsExpected(1)">Set all to 1</button>
+        <button class="btn" onclick="setAllBinsExpected(0)">Set all to 0 (no target)</button>
+    </div>
+  </div>`;
 }
-function setBinExpected(idxInPlanBins, val){
-  const pid = state.currentPlanId; if(!pid) return;
-  const bins = allBinsOfPlan(pid);
-  // Find the bin object using the index within the filtered list of bins for the current plan
-  const b = bins[idxInPlanBins]; if(!b) return;
-  // Find the original bin reference in the global state.bins array
-  const ref = state.bins.find(x=>x.planId===pid && x.binId===b.binId && x.routeKey===b.routeKey);
-  if(!ref) return;
-  ref.expectedSkus = Math.max(0, parseInt(val||0,10));
-  persist(); render();
+
+// New function to save a single bin target
+function saveBinTarget(binId, val) {
+    const pid = state.currentPlanId;
+    if (!pid || !binId) return showMessage('Error', 'No plan or bin selected.');
+    
+    // Find the bin object in the global state.bins array
+    const ref = state.bins.find(x => x.planId === pid && x.binId === binId);
+    if (!ref) return showMessage('Error', 'Bin not found.');
+
+    ref.expectedSkus = Math.max(0, parseInt(val || 0, 10));
+    persist();
+    render(); // Re-render to update the status pane
+    showMessage('Success', `Expected SKUs for ${binId} set to ${ref.expectedSkus}.`);
 }
+
+
 function setAllBinsExpected(val){
   const pid = state.currentPlanId; if(!pid) return;
   state.bins.filter(b=>b.planId===pid).forEach(b=>b.expectedSkus = Math.max(0, parseInt(val||0,10)));
@@ -597,28 +654,6 @@ function seedDemo(){
   let p = state.plans.find(x=>x.id===id);
   if(!p){ p = {id, site, asof, repeat, scope}; state.plans.push(p); }
   state.currentPlanId = id;
-
-  // 3. After generate action plan guide route no need to auto gen. 
-  // Only insert Plan data, skip routes/assignments/scans generation unless explicitly adding a button for it later.
-  
-  // Example for manually seeding demo routes/bins (if user chose to do this manually later)
-  /*
-  const sys = {planId:id, section:'A01', type:'system', stops:['A01-01','A01-02','A01-03','A01-04']};
-  const man = {planId:id, section:'B02', type:'manual', stops:['B02-01','B02-02','B02-03']};
-  const existingKeys = new Set(state.routes.map(r=>keyOf(r)));
-  [sys,man].forEach(r=>{ if(!existingKeys.has(keyOf(r))){ state.routes.push(r); r.stops.forEach(b=>state.bins.push({planId:id, routeKey:keyOf(r), binId:b, section:r.section, expectedSkus:1})); }});
-
-  const rkSys = keyOf(sys), rkMan = keyOf(man);
-  if(!state.assignments.some(a=>a.planId===id && a.routeKey===rkSys)) state.assignments.push({planId:id, routeKey:rkSys, user:'alice'});
-  if(!state.assignments.some(a=>a.planId===id && a.routeKey===rkMan)) state.assignments.push({planId:id, routeKey:rkMan, user:'bob'});
-  
-  const pushScan = (rk, bin, sku, qty)=> state.scans.push({planId:id, routeKey:rk, binId:bin, when:Date.now(), sku, qty, blind:true, note:''});
-  if(state.scans.filter(s=>s.planId===id).length<3){
-    pushScan(rkSys,'A01-01','EAN-1234567890123',1);
-    pushScan(rkSys,'A01-02','EAN-2234567890123',3);
-    pushScan(rkMan,'B02-01','EAN-3234567890123',2);
-  }
-  */
 
   persist(); showMessage('Success', 'Inserted mock Plan data for DEMO-PLAN-001. Now manually generate Routes.'); render(); refreshActivePlanBadge();
 }
@@ -1008,7 +1043,7 @@ function renderReports(){
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 0">
           <h3><span class="ico-inline" data-ic="report"></span> 5) Dashboard (Real‑time)</h3>
           <div>
-            <button class="btn bad" onclick="clearAllData()"><span class="ico-inline" data-ic="alert"></span> Clear All Data</button>
+            <!-- 1. Remove clear data button on the report tab -->
             <button class="btn primary" onclick="exportCSV()"><span class="ico-inline" data-ic="arrow"></span> Export CSV</button>
           </div>
         </div>
