@@ -75,12 +75,41 @@
   <div class="brand" aria-hidden="true"></div>
   <div>
     <h1>Physical Count</h1>
-    <div class="sub">V7.3 — Linked model with stable camera scanning • <span id="activePlanBadge" class="pill">Plan: <b>—</b></span></div>
+    <div class="sub">V7.4 — Linked model + Login • <span id="activePlanBadge" class="pill">Plan: <b>—</b></span> • <span id="userBadge" class="pill">User: <b>Guest</b></span> <button class="btn" id="btnSignOut" style="margin-left:6px;padding:4px 8px;min-height:auto">Sign out</button></div>
   </div>
 </header>
 
 <div class="container" id="view"></div>
 <div class="spacer"></div>
+
+<!-- Login Overlay -->
+<div id="loginOverlay" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(180deg,#f8fafc,#eef2ff);z-index:100;">
+  <div class="card" style="width:min(560px,92%);padding:16px 16px 18px 16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div class="brand" aria-hidden="true"></div>
+      <div>
+        <h2 style="margin:0;font-size:20px">SAP Enhancement : HHT Physical Count</h2>
+        <div class="muted" style="font-size:12px">Mock SSO — demo only</div>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1;min-width:220px">
+        <label>Work Email</label>
+        <input id="loginEmail" placeholder="name@company.com"/>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label>Display Name</label>
+        <input id="loginName" placeholder="e.g., alice"/>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btnSSO"><span class="ico-inline" data-ic="shield"></span> Sign in with SSO</button>
+      <button class="btn" id="btnGuest">Continue as Guest</button>
+    </div>
+    <div class="muted" style="font-size:12px">Note: This is a mock. No real authentication.</div>
+  </div>
+</div>
+
 
 <div class="tabs">
   <button class="tab-btn active" data-view="plan"><div class="ico" data-ic="plan"></div><span>Plan</span></button>
@@ -179,7 +208,8 @@ const state = {
   discrepancies: JSON.parse(localStorage.getItem('pc_disc')||'[]'),
   freezes: JSON.parse(localStorage.getItem('pc_freezes')||'[]'),
   cfg: JSON.parse(localStorage.getItem('pc_cfg')||'null'),
-  currentPlanId: localStorage.getItem('pc_currentPlanId') || null
+  currentPlanId: localStorage.getItem('pc_currentPlanId') || null,
+  currentUser: localStorage.getItem('pc_user') || null
 };
 function persist(){
   localStorage.setItem('pc_plans', JSON.stringify(state.plans));
@@ -191,6 +221,7 @@ function persist(){
   localStorage.setItem('pc_freezes', JSON.stringify(state.freezes));
   localStorage.setItem('pc_cfg', JSON.stringify(state.cfg));
   if(state.currentPlanId) localStorage.setItem('pc_currentPlanId', state.currentPlanId);
+  if(state.currentUser!==null) localStorage.setItem('pc_user', state.currentUser);
 }
 (function seed(){
   const fresh = !state.plans.length && !state.routes.length && !state.bins.length && !state.assignments.length && !state.scans.length && !state.discrepancies.length && !state.freezes.length && !state.cfg;
@@ -253,6 +284,46 @@ function render(){
 }
 render(); paintIcons(document); refreshActivePlanBadge();
 
+function refreshUserBadge(){
+  const b = document.getElementById('userBadge');
+  if(!b) return;
+  const u = state.currentUser || 'Guest';
+  b.innerHTML = 'User: <b>' + esc(u) + '</b>';
+}
+function needLogin(){
+  return !state.currentUser;
+}
+function showLogin(show){
+  const ov = document.getElementById('loginOverlay'); if(!ov) return;
+  ov.style.display = show ? 'flex' : 'none';
+}
+function bindLogin(){
+  const btnSSO = document.getElementById('btnSSO');
+  const btnGuest = document.getElementById('btnGuest');
+  if(btnSSO){
+    btnSSO.onclick = ()=>{
+      const email = (document.getElementById('loginEmail').value||'').trim();
+      let name = (document.getElementById('loginName').value||'').trim();
+      if(!name && email){ name = email.split('@')[0]; }
+      state.currentUser = name || 'guest';
+      persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  if(btnGuest){
+    btnGuest.onclick = ()=>{
+      state.currentUser = 'guest'; persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  const signOut = document.getElementById('btnSignOut');
+  if(signOut){
+    signOut.onclick = ()=>{ state.currentUser = null; persist(); refreshUserBadge(); showLogin(true); };
+  }
+}
+
+refreshUserBadge();
+bindLogin();
+if(needLogin()) showLogin(true);
+
 // UI: selectors
 function planSelector(){
   return `<div class="row" style="align-items:end">
@@ -264,7 +335,57 @@ function planSelector(){
     </div>
   </div>`;
 }
-function selectPlan(pid){ state.currentPlanId = pid; persist(); render(); refreshActivePlanBadge(); }
+function selectPlan(pid){ state.currentPlanId = pid; persist(); render(); refreshActivePlanBadge();
+
+function refreshUserBadge(){
+  const b = document.getElementById('userBadge');
+  if(!b) return;
+  const u = state.currentUser || 'Guest';
+  b.innerHTML = 'User: <b>' + esc(u) + '</b>';
+}
+function needLogin(){
+  return !state.currentUser;
+}
+function showLogin(show){
+  const ov = document.getElementById('loginOverlay'); if(!ov) return;
+  ov.style.display = show ? 'flex' : 'none';
+}
+function bindLogin(){
+  const btnSSO = document.getElementById('btnSSO');
+  const btnGuest = document.getElementById('btnGuest');
+  if(btnSSO){
+    btnSSO.onclick = ()=>{
+      const email = (document.getElementById('loginEmail').value||'').trim();
+      let name = (document.getElementById('loginName').value||'').trim();
+      if(!name && email){ name = email.split('@')[0]; }
+      state.currentUser = name || 'guest';
+      persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  if(btnGuest){
+    btnGuest.onclick = ()=>{
+      state.currentUser = 'guest'; persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  const signOut = document.getElementById('btnSignOut');
+  if(signOut){
+    signOut.onclick = ()=>{ state.currentUser = null; persist(); refreshUserBadge(); showLogin(true); };
+  }
+}
+
+refreshUserBadge();
+bindLogin();
+if(needLogin()) showLogin(true); }
+
+
+function usersForPlan(pid){
+  return Array.from(new Set(state.assignments.filter(a=>a.planId===pid).map(a=>a.user)));
+}
+function binsForUser(pid, user){
+  const rks = state.assignments.filter(a=>a.planId===pid && a.user===user).map(a=>a.routeKey);
+  const set = new Set(rks);
+  return state.bins.filter(b=>b.planId===pid && set.has(b.routeKey));
+}
 
 // Views
 function renderPlan(){
@@ -376,34 +497,50 @@ function addAssign(){
 }
 
 // Execute
+
 function renderExecute(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
-  const allBins = allBinsOfPlan(pid);
+  const users = usersForPlan(pid);
+  const activeUser = (state.currentUser && users.includes(state.currentUser)) ? state.currentUser : (users[0] || state.currentUser || 'guest');
+  const userBins = binsForUser(pid, activeUser);
   view.innerHTML = `
     <div class="grid">
       <div class="card">
         <h3><span class="ico-inline" data-ic="scan"></span> 3) Execution (Track / Freeze)</h3>
         <div class="row">
+          <div style="flex:1;min-width:160px">
+            <label>User</label>
+            <select id="exe-user">${[activeUser, ...users.filter(u=>u!==activeUser)].map(u=>`<option value="${u}">${u}</option>`).join('')}</select>
+          </div>
           <div style="flex:1;min-width:200px">
-            <label>Bin</label>
-            <select id="exe-bin">${allBins.map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('') || '<option disabled>No bins</option>'}</select>
+            <label>Bin (assigned to user)</label>
+            <select id="exe-bin">${userBins.map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('') || '<option disabled>No bins assigned</option>'}</select>
           </div>
           <div style="align-self:end"><button class="btn ok" onclick="openScanSheet()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button></div>
           <div style="align-self:end"><button class="btn warn" onclick="openFreezeSheet()"><span class="ico-inline" data-ic="freeze"></span> Freeze Bin</button></div>
         </div>
-        ${listScans(state.scans.filter(s=>s.planId===pid).slice(-12).reverse())}
+        ${listScans(state.scans.filter(s=>s.planId===pid && state.assignments.some(a=>a.planId===pid && a.user===activeUser && a.routeKey===s.routeKey)).slice(-12).reverse())}
       </div>
       <div class="card">
-        <h3><span class="ico-inline" data-ic="freeze"></span> Frozen Bins</h3>
-        <div class="grid">${state.freezes.filter(f=>f.planId===pid).length? state.freezes.filter(f=>f.planId===pid).map(f=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center">
-          <div><b>${esc(f.binId)}</b> — ${esc(f.reason||'Frozen')}</div>
-          <button class="btn ok" onclick="unfreezeDirect('${f.binId}')"><span class="ico-inline" data-ic="flame"></span> Unfreeze</button>
-        </div>`).join('') : '<div class="muted">No frozen bins.</div>'}</div>
+        <h3><span class="ico-inline" data-ic="freeze"></span> Frozen Bins (for user)</h3>
+        <div class="grid">${
+          state.freezes.filter(f=>f.planId===pid && userBins.some(b=>b.binId===f.binId)).length
+            ? state.freezes.filter(f=>f.planId===pid && userBins.some(b=>b.binId===f.binId)).map(f=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+              <div><b>${esc(f.binId)}</b> — ${esc(f.reason||'Frozen')}</div>
+              <button class="btn ok" onclick="unfreezeDirect('${f.binId}')"><span class="ico-inline" data-ic="flame"></span> Unfreeze</button>
+            </div>`).join('')
+            : '<div class="muted">No frozen bins for selected user.</div>'
+        }</div>
       </div>
     </div>`;
   paintIcons(view);
+  const exeUserSel = document.getElementById('exe-user');
+  if(exeUserSel){
+    exeUserSel.onchange = ()=>{ state.currentUser = exeUserSel.value; persist(); renderExecute(); refreshUserBadge(); };
+  }
 }
+
 function listScans(arr){
   if(!arr.length) return empty('No scans yet.');
   return `<div class="grid">
@@ -429,14 +566,16 @@ function toggleSheet(id, on){
   if(!on){ stopCamera(); }
 }
 function populateScanBins(){
-  const pid = state.currentPlanId;
+  const pid = state.currentPlanId; const user = state.currentUser;
   const sel = document.getElementById('sc-bin'); if(!sel) return;
-  sel.innerHTML = allBinsOfPlan(pid).map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
+  const bins = user ? binsForUser(pid, user) : allBinsOfPlan(pid);
+  sel.innerHTML = bins.map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
 }
 function populateFreezeBins(){
-  const pid = state.currentPlanId;
+  const pid = state.currentPlanId; const user = state.currentUser;
   const sel = document.getElementById('fz-bin'); if(!sel) return;
-  sel.innerHTML = allBinsOfPlan(pid).map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
+  const bins = user ? binsForUser(pid, user) : allBinsOfPlan(pid);
+  sel.innerHTML = bins.map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
 }
 
 // Scan submit
@@ -614,11 +753,91 @@ function savePlan(){
   if(!p){ p = {id, site, asof, repeat, scope, sections:[]}; state.plans.push(p); }
   else { Object.assign(p, {site, asof, repeat, scope}); }
   state.currentPlanId = id; persist(); alert('Plan saved & set active.'); render(); refreshActivePlanBadge();
+
+function refreshUserBadge(){
+  const b = document.getElementById('userBadge');
+  if(!b) return;
+  const u = state.currentUser || 'Guest';
+  b.innerHTML = 'User: <b>' + esc(u) + '</b>';
+}
+function needLogin(){
+  return !state.currentUser;
+}
+function showLogin(show){
+  const ov = document.getElementById('loginOverlay'); if(!ov) return;
+  ov.style.display = show ? 'flex' : 'none';
+}
+function bindLogin(){
+  const btnSSO = document.getElementById('btnSSO');
+  const btnGuest = document.getElementById('btnGuest');
+  if(btnSSO){
+    btnSSO.onclick = ()=>{
+      const email = (document.getElementById('loginEmail').value||'').trim();
+      let name = (document.getElementById('loginName').value||'').trim();
+      if(!name && email){ name = email.split('@')[0]; }
+      state.currentUser = name || 'guest';
+      persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  if(btnGuest){
+    btnGuest.onclick = ()=>{
+      state.currentUser = 'guest'; persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  const signOut = document.getElementById('btnSignOut');
+  if(signOut){
+    signOut.onclick = ()=>{ state.currentUser = null; persist(); refreshUserBadge(); showLogin(true); };
+  }
+}
+
+refreshUserBadge();
+bindLogin();
+if(needLogin()) showLogin(true);
 }
 function insertMockPlan(){
   const id = 'S-' + Math.floor(Math.random()*9000+1000);
   const p = {id, site:'BKK02', asof:'2025-10-01', repeat:'One-time', scope:{category:'Snack', brand:'Chip', vendor:'VND045'}, sections:[{section:'S01', bins:20}]};
   state.plans.push(p); state.currentPlanId = id; persist(); render(); refreshActivePlanBadge();
+
+function refreshUserBadge(){
+  const b = document.getElementById('userBadge');
+  if(!b) return;
+  const u = state.currentUser || 'Guest';
+  b.innerHTML = 'User: <b>' + esc(u) + '</b>';
+}
+function needLogin(){
+  return !state.currentUser;
+}
+function showLogin(show){
+  const ov = document.getElementById('loginOverlay'); if(!ov) return;
+  ov.style.display = show ? 'flex' : 'none';
+}
+function bindLogin(){
+  const btnSSO = document.getElementById('btnSSO');
+  const btnGuest = document.getElementById('btnGuest');
+  if(btnSSO){
+    btnSSO.onclick = ()=>{
+      const email = (document.getElementById('loginEmail').value||'').trim();
+      let name = (document.getElementById('loginName').value||'').trim();
+      if(!name && email){ name = email.split('@')[0]; }
+      state.currentUser = name || 'guest';
+      persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  if(btnGuest){
+    btnGuest.onclick = ()=>{
+      state.currentUser = 'guest'; persist(); showLogin(false); refreshUserBadge(); render();
+    };
+  }
+  const signOut = document.getElementById('btnSignOut');
+  if(signOut){
+    signOut.onclick = ()=>{ state.currentUser = null; persist(); refreshUserBadge(); showLogin(true); };
+  }
+}
+
+refreshUserBadge();
+bindLogin();
+if(needLogin()) showLogin(true);
 }
 function systemGuidedRoute(){
   if(!ensurePlan()) return;
