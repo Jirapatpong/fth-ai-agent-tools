@@ -522,7 +522,8 @@ function renderPlan(){
 
       <div class="card" ${hasPlan ? '' : 'style="display:none"'}>
         <h3><span class="ico-inline" data-ic="map"></span> 1.1) System‑Guided Route (sub of Plan)</h3>
-        <div class="row">
+        <!-- FIX 1: Add margin-bottom to the row containing the Generate button -->
+        <div class="row" style="margin-bottom: 15px;">
           <div style="flex:1;min-width:150px"><label>Section</label><input id="sg-section" placeholder="A01"/></div>
           <div style="flex:1;min-width:150px"><label>Stops per Route</label><input id="sg-stops" type="number" value="4"/></div>
           <div style="align-self:end"><button class="btn primary" onclick="systemGuidedRoute()"><span class="ico-inline" data-ic="arrow"></span> Generate</button></div>
@@ -532,7 +533,8 @@ function renderPlan(){
 
       <div class="card" ${hasPlan ? '' : 'style="display:none"'}>
         <h3><span class="ico-inline" data-ic="map"></span> 1.2) Manual Route (sub of Plan)</h3>
-        <div class="row">
+        <!-- Ensure margin for 1.2 as well -->
+        <div class="row" style="margin-bottom: 15px;">
           <div style="flex:1;min-width:140px"><label>Section</label><input id="mr-section" placeholder="A02"/></div>
           <div style="flex:2;min-width:200px"><label>Stops (comma) — becomes Bins</label><input id="mr-stops" placeholder="A02-01,A02-02,A02-03"/></div>
           <div style="align-self:end"><button class="btn ok" onclick="manualRouteCreate()"><span class="ico-inline" data-ic="tick"></span> Add Manual Route</button></div>
@@ -717,7 +719,8 @@ function renderAssign(){
       <div class="card">
         <h3><span class="ico-inline" data-ic="users"></span> 2) Allocation Assignment</h3>
         ${planSelector()}
-        <div class="row">
+        <!-- FIX 2: Add margin-bottom to the row containing the Assign button -->
+        <div class="row" style="margin-bottom: 15px;">
           <div style="flex:1;min-width:160px">
             <label>Route</label>
             <select id="as-route">
@@ -786,8 +789,8 @@ function renderExecute(){
     <div class="grid">
       <div class="card">
         <h3><span class="ico-inline" data-ic="scan"></span> 3) Count (Track / Scan)</h3>
-        <!-- 7. On count tab re design ui again because some area is overlay -->
-        <div class="row execute-row">
+        <!-- FIX 3: Add margin-bottom to the execute-row containing the Scan & Count button -->
+        <div class="row execute-row" style="margin-bottom: 15px;">
           <div style="flex:1;">
             <label>Bin</label>
             <select id="exe-bin">${
