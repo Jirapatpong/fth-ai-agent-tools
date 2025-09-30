@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Physical Count — V7 (Linked Plan→Route→Bin→Assign)</title>
+<title>Physical Count — V7.3 (Stable + Camera Scan)</title>
 <style>
   :root{
     --bg:#f6f8fb; --panel:#ffffff; --muted:#637082; --text:#0b1220;
@@ -28,7 +28,6 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow)}
   .card h3{margin:0 0 6px 0;font-size:var(--fs-lg);display:flex;align-items:center;gap:6px}
   .muted{color:var(--muted)}
-  /* Inputs */
   input,select,textarea,button{font-size:var(--fs-md)}
   input,select,textarea{width:100%;background:#fff;border:1px solid #dbe3ea;color:var(--text);padding:8px 10px;border-radius:10px;outline:none;min-height:36px}
   input:focus,select:focus,textarea:focus{border-color:#93c5fd;box-shadow:0 0 0 2px rgba(147,197,253,.25)}
@@ -51,7 +50,6 @@
     table tbody td{padding:6px 6px}
     table tbody td::before{content:attr(data-label);display:block;color:#64748b;font-size:var(--fs-xs);margin-bottom:2px}
   }
-  /* Bottom tabs */
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
     padding:4px calc(8px + var(--inset)); display:flex;gap:4px;justify-content:space-around}
   .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:transparent;color:#334155;
@@ -61,15 +59,15 @@
   .tab-btn.active .ico{color:#1d4ed8}
   .tab-btn span{font-size:var(--fs-xs)}
   .spacer{height:72px}
-  /* Modals */
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.28);display:none;align-items:flex-end;justify-content:center;z-index:50}
   .dialog{background:#fff;border-top-left-radius:14px;border-top-right-radius:14px;width:100%;max-width:680px;box-shadow:0 -10px 24px rgba(2,6,23,.16)}
   .sheet{padding:12px 12px calc(12px + var(--inset)) 12px;border-top:1px solid var(--line)}
   .close{position:absolute;right:10px;top:8px;background:#fff;border:1px solid #cbd5e1;color:#334155;border-radius:8px;padding:4px 8px;cursor:pointer}
-  /* Icons */
   svg{display:block}
   .ico svg{width:100%;height:100%}
   .ico-inline{width:var(--icon-inline);height:var(--icon-inline);color:#2563eb}
+  .flash { animation: flash 600ms ease-out }
+  @keyframes flash { 0%{box-shadow:0 0 0 0 rgba(37,99,235,.7)} 100%{box-shadow:0 0 0 18px rgba(37,99,235,0)} }
 </style>
 </head>
 <body>
@@ -77,7 +75,7 @@
   <div class="brand" aria-hidden="true"></div>
   <div>
     <h1>Physical Count</h1>
-    <div class="sub">V7.1 — All entities are linked • <span id="activePlanBadge" class="pill">Plan: <b>—</b></span></div>
+    <div class="sub">V7.3 — Linked model with stable camera scanning • <span id="activePlanBadge" class="pill">Plan: <b>—</b></span></div>
   </div>
 </header>
 
@@ -97,13 +95,27 @@
   <div class="dialog">
     <div class="sheet">
       <button class="close" onclick="toggleSheet('sheetScan',false)">✕</button>
-      <h3><span class="ico-inline" data-ic="scan"></span> Scan & Count</h3>
+      <h3><button class="btn" id="btnCamToggle" style="margin-right:6px"><span class="ico-inline" data-ic="scan"></span></button> Scan & Count</h3>
       <div class="row">
         <div class="card" style="flex:1;min-width:220px">
           <label>Route Stop / Bin (from current Plan)</label>
           <select id="sc-bin"></select>
         </div>
         <div class="card" style="flex:1;min-width:220px"><label>SKU / EAN / Serial</label><input id="sc-sku" placeholder="8850123456789"/></div>
+      </div>
+      <div class="row" id="camRow" style="display:none">
+        <div class="card" style="flex:1;min-width:260px">
+          <label>Camera Preview</label>
+          <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #dbe3ea">
+            <video id="camPreview" playsinline autoplay muted style="width:100%;height:auto;display:block;background:#0b1220"></video>
+            <div id="scanHint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:4px 8px;border-radius:999px;background:#fff;border:1px solid #dbe3ea;color:#334155;font-size:12px">Aim barcode inside</div>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <button class="btn primary" id="btnStartScan"><span class="ico-inline" data-ic="scan"></span> Open Camera</button>
+            <button class="btn" id="btnStopScan" disabled>Close</button>
+            <span class="muted" id="scanSupportNote" style="align-self:center;font-size:12px"></span>
+          </div>
+        </div>
       </div>
       <div class="row">
         <div class="card" style="flex:1;min-width:120px"><label>Qty</label><input id="sc-qty" type="number" value="1"/></div>
@@ -142,39 +154,31 @@
 <script>
 // Icons
 const ICONS = {
-  plan:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M3 8h18"/></svg>`,
-  users:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="8" cy="8" r="3"/><circle cx="16" cy="11" r="3"/><path d="M2 21a6 6 0 0 1 12 0"/><path d="M10 21a6 6 0 0 1 12 0"/></svg>`,
-  scan:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M4 7V5a1 1 0 0 1 1-1h2M18 4h1a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M6 20H5a1 1 0 0 1-1-1v-2"/>
-    <rect x="8" y="8" width="8" height="8" rx="2"/></svg>`,
-  shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M12 2l7 4v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-4z"/></svg>`,
-  report:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M4 4h10l6 6v10a2 2 0 0 1-2 2H4z"/><path d="M14 4v6h6"/><path d="M8 16v4M12 14v6M16 12v8"/></svg>`,
+  plan:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M3 8h18"/></svg>`,
+  users:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="11" r="3"/><path d="M2 21a6 6 0 0 1 12 0"/><path d="M10 21a6 6 0 0 1 12 0"/></svg>`,
+  scan:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5a1 1 0 0 1 1-1h2M18 4h1a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M6 20H5a1 1 0 0 1-1-1v-2"/><rect x="8" y="8" width="8" height="8" rx="2"/></svg>`,
+  shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l7 4v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-4z"/></svg>`,
+  report:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h10l6 6v10a2 2 0 0 1-2 2H4z"/><path d="M14 4v6h6"/><path d="M8 16v4M12 14v6M16 12v8"/></svg>`,
   tick:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`,
-  alert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.2 1.7 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/></svg>`,
+  alert:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.2 1.7 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0z"/></svg>`,
   freeze:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M4 12h16M6 6l12 12M18 6L6 18"/></svg>`,
   flame:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3s4 3 4 7-2 5-4 5-4-1-4-5 4-7 4-7z"/></svg>`,
-  boxes:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 17l9 4 9-4"/><path d="M3 12l9 4 9-4"/></svg>`,
+  boxes:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 17l9 4 9-4"/><path d="M3 12l9 4 9-4"/></svg>`,
   map:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,
   arrow:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`
 };
 function paintIcons(scope=document){ scope.querySelectorAll('[data-ic]').forEach(el=>{ el.innerHTML = ICONS[el.getAttribute('data-ic')]||''; }); }
 
-// State (all entities carry parent keys)
+// State
 const state = {
-  plans: JSON.parse(localStorage.getItem('pc_plans')||'[]'),          // [{id, site, asof, repeat, scope, sections[]}]
-  routes: JSON.parse(localStorage.getItem('pc_routes')||'[]'),        // [{planId, section, type, stops[] }]
-  bins: JSON.parse(localStorage.getItem('pc_bins')||'[]'),            // [{planId, routeKey, binId, section}]
-  assignments: JSON.parse(localStorage.getItem('pc_assignments')||'[]'), // [{planId, user, routeKey, bins[]?}]
-  scans: JSON.parse(localStorage.getItem('pc_scans')||'[]'),          // [{planId, routeKey, binId, sku, qty, ...}]
-  discrepancies: JSON.parse(localStorage.getItem('pc_disc')||'[]'),   // [{planId, id, ...}]
-  freezes: JSON.parse(localStorage.getItem('pc_freezes')||'[]'),      // [{planId, binId, ...}]
-  cfg: JSON.parse(localStorage.getItem('pc_cfg')||'null'),            // {planId, ... rules}
+  plans: JSON.parse(localStorage.getItem('pc_plans')||'[]'),
+  routes: JSON.parse(localStorage.getItem('pc_routes')||'[]'),
+  bins: JSON.parse(localStorage.getItem('pc_bins')||'[]'),
+  assignments: JSON.parse(localStorage.getItem('pc_assignments')||'[]'),
+  scans: JSON.parse(localStorage.getItem('pc_scans')||'[]'),
+  discrepancies: JSON.parse(localStorage.getItem('pc_disc')||'[]'),
+  freezes: JSON.parse(localStorage.getItem('pc_freezes')||'[]'),
+  cfg: JSON.parse(localStorage.getItem('pc_cfg')||'null'),
   currentPlanId: localStorage.getItem('pc_currentPlanId') || null
 };
 function persist(){
@@ -192,30 +196,17 @@ function persist(){
   const fresh = !state.plans.length && !state.routes.length && !state.bins.length && !state.assignments.length && !state.scans.length && !state.discrepancies.length && !state.freezes.length && !state.cfg;
   if(!fresh) return;
   const pid = 'S-2025-09-001';
-  state.plans = [{
-    id:pid, site:'BKK01', asof:'2025-09-01', repeat:'Quarterly',
-    scope:{category:'Beverage', brand:'Cola', vendor:'VND001'},
-    sections:[{section:'A01', bins:40},{section:'A02', bins:32},{section:'Backroom-FRZ', bins:12}]
-  }];
+  state.plans = [{ id:pid, site:'BKK01', asof:'2025-09-01', repeat:'Quarterly',
+    scope:{category:'Beverage', brand:'Cola', vendor:'VND001'}, sections:[{section:'A01', bins:40},{section:'A02', bins:32}] }];
   state.currentPlanId = pid;
-  // routes
   const r1 = {planId:pid, section:'A01', type:'system', stops:['A01-01','A01-02','A01-03','A01-04']};
   const r2 = {planId:pid, section:'A02', type:'system', stops:['A02-01','A02-02','A02-03']};
   state.routes = [r1,r2];
-  // bins derived from routes
   state.bins = [...r1.stops.map(b=>({planId:pid, routeKey:keyOf(r1), binId:b, section:r1.section})),
                 ...r2.stops.map(b=>({planId:pid, routeKey:keyOf(r2), binId:b, section:r2.section}))];
-  // assignments (must use planId+routeKey)
-  state.assignments = [
-    {planId:pid, user:'alice', routeKey:keyOf(r1)},
-    {planId:pid, user:'bob', routeKey:keyOf(r2)},
-  ];
-  // others
+  state.assignments = [{planId:pid, user:'alice', routeKey:keyOf(r1)}];
   const now = Date.now();
-  state.scans = [
-    {planId:pid, routeKey:keyOf(r1), binId:'A01-01', when:now-7200e3, sku:'EAN-885000000001', qty:6, blind:true, note:'promo'},
-    {planId:pid, routeKey:keyOf(r1), binId:'A01-02', when:now-3600e3, sku:'SKU-2002', qty:2, blind:false, note:''},
-  ];
+  state.scans = [{planId:pid, routeKey:keyOf(r1), binId:'A01-01', when:now-3600e3, sku:'EAN-885000000001', qty:6, blind:true, note:'promo'}];
   state.freezes = [{planId:pid, binId:'A01-02', reason:'Cycle count', when:now-3000e3}];
   state.discrepancies = [{planId:pid, id:'D-1001', type:'QtyMismatch', binId:'A01-01', sku:'EAN-885000000001', expected:10, counted:6, status:'Open'}];
   state.cfg = {planId:pid, blind:true, twoMatch:true, photo:true, maxVariance:5};
@@ -229,6 +220,14 @@ function ensurePlan(){ if(!state.currentPlanId || !currentPlan()){ alert('Create
 function routesOfPlan(pid){ return state.routes.filter(r=>r.planId===pid); }
 function binsOfRoute(pid, routeKey){ return state.bins.filter(b=>b.planId===pid && b.routeKey===routeKey); }
 function allBinsOfPlan(pid){ return state.bins.filter(b=>b.planId===pid); }
+function esc(s){return (s??'').toString().replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function fmtWhen(t){const d=new Date(t||Date.now()); return d.toLocaleString();}
+function refreshActivePlanBadge(){
+  const badge = document.getElementById('activePlanBadge');
+  if(!badge) return;
+  const p = currentPlan();
+  badge.innerHTML = 'Plan: <b>' + (p? esc(p.id) : '—') + '</b>';
+}
 
 // Router
 const view = document.getElementById('view');
@@ -252,18 +251,9 @@ function render(){
     default: return renderPlan();
   }
 }
-render(); paintIcons(document);
+render(); paintIcons(document); refreshActivePlanBadge();
 
-function refreshActivePlanBadge(){
-  const badge = document.getElementById('activePlanBadge');
-  if(!badge) return;
-  const p = currentPlan();
-  badge.innerHTML = 'Plan: <b>' + (p? esc(p.id) : '—') + '</b>';
-}
-
-refreshActivePlanBadge();
-
-// UI Parts
+// UI: selectors
 function planSelector(){
   return `<div class="row" style="align-items:end">
     <div style="flex:1;min-width:200px">
@@ -291,9 +281,9 @@ function renderPlan(){
           <div style="flex:1;min-width:150px"><label>Repeat</label><input id="pl-repeat" value="${p?esc(p.repeat||'One-time'):''}"/></div>
         </div>
         <div class="row">
-          <div style="flex:1;min-width:150px"><label>Category</label><input id="pl-cat" value="${p?esc(p.scope.category):''}"/></div>
-          <div style="flex:1;min-width:150px"><label>Brand</label><input id="pl-brand" value="${p?esc(p.scope.brand):''}"/></div>
-          <div style="flex:1;min-width:150px"><label>Vendor</label><input id="pl-vendor" value="${p?esc(p.scope.vendor):''}"/></div>
+          <div style="flex:1;min-width:150px"><label>Category</label><input id="pl-cat" value="${p?esc(p.scope.category||''):''}"/></div>
+          <div style="flex:1;min-width:150px"><label>Brand</label><input id="pl-brand" value="${p?esc(p.scope.brand||''):''}"/></div>
+          <div style="flex:1;min-width:150px"><label>Vendor</label><input id="pl-vendor" value="${p?esc(p.scope.vendor||''):''}"/></div>
         </div>
         <div class="row">
           <button class="btn primary" onclick="savePlan()"><span class="ico-inline" data-ic="tick"></span> Save / Set Active</button>
@@ -302,7 +292,7 @@ function renderPlan(){
       </div>
 
       <div class="card">
-        <h3><span class="ico-inline" data-ic="map"></span> 1.1) System‑Guided Route Planning (sub of Plan)</h3>
+        <h3><span class="ico-inline" data-ic="map"></span> 1.1) System‑Guided Route (sub of Plan)</h3>
         <div class="row">
           <div style="flex:1;min-width:150px"><label>Section</label><input id="sg-section" placeholder="A01"/></div>
           <div style="flex:1;min-width:150px"><label>Stops per Route</label><input id="sg-stops" type="number" value="4"/></div>
@@ -312,7 +302,7 @@ function renderPlan(){
       </div>
 
       <div class="card">
-        <h3><span class="ico-inline" data-ic="map"></span> 1.2) Manual Route Planning (sub of Plan)</h3>
+        <h3><span class="ico-inline" data-ic="map"></span> 1.2) Manual Route (sub of Plan)</h3>
         <div class="row">
           <div style="flex:1;min-width:140px"><label>Section</label><input id="mr-section" placeholder="A02"/></div>
           <div style="flex:2;min-width:200px"><label>Stops (comma) — becomes Bins</label><input id="mr-stops" placeholder="A02-01,A02-02,A02-03"/></div>
@@ -329,7 +319,8 @@ function renderRoutesTable(){
   if(!list.length) return empty('No routes for this plan.');
   return `<table><thead><tr><th>Plan</th><th>Section</th><th>Type</th><th>Stops / Bins</th><th></th></tr></thead>
     <tbody>${list.map((r,i)=>`<tr>
-      <td data-label="Plan">${esc(r.planId)}</td><td data-label="Section">${esc(r.section)}</td>
+      <td data-label="Plan">${esc(r.planId)}</td>
+      <td data-label="Section">${esc(r.section)}</td>
       <td data-label="Type"><span class="pill">${r.type}</span></td>
       <td data-label="Stops">${esc(r.stops.join(', '))}</td>
       <td data-label=""><button class="btn bad" onclick="delRoute(${i})"><span class="ico-inline" data-ic="alert"></span> Delete</button></td>
@@ -344,7 +335,7 @@ function renderAssign(){
   view.innerHTML = `
     <div class="grid">
       <div class="card">
-        <h3><span class="ico-inline" data-ic="users"></span> 2) Allocation Assignment (must follow Plan → Route)</h3>
+        <h3><span class="ico-inline" data-ic="users"></span> 2) Allocation Assignment (Plan → Route)</h3>
         ${planSelector()}
         <div class="row">
           <div style="flex:1;min-width:160px">
@@ -373,6 +364,16 @@ function tableAssign(arr, pid){
       </tr>`;
     }).join('')}</tbody></table>`;
 }
+function addAssign(){
+  if(!ensurePlan()) return;
+  const pid = state.currentPlanId;
+  const rk = document.getElementById('as-route').value;
+  const user = document.getElementById('as-user').value.trim();
+  if(!rk || !user){ alert('Route & User required'); return; }
+  const r = state.routes.find(x=>keyOf(x)===rk && x.planId===pid);
+  if(!r){ alert('Selected route not found in current plan.'); return; }
+  state.assignments.push({planId:pid, user, routeKey:rk}); persist(); renderAssign();
+}
 
 // Execute
 function renderExecute(){
@@ -382,14 +383,14 @@ function renderExecute(){
   view.innerHTML = `
     <div class="grid">
       <div class="card">
-        <h3><span class="ico-inline" data-ic="scan"></span> 3) Execution (Track / Freeze) — linked to Plan & Route</h3>
+        <h3><span class="ico-inline" data-ic="scan"></span> 3) Execution (Track / Freeze)</h3>
         <div class="row">
           <div style="flex:1;min-width:200px">
             <label>Bin</label>
-            <select id="exe-bin">${allBins.map(b=>{const [pid,sec,type]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid} • ${b.section} • ${b.binId}</option>`}).join('') || '<option disabled>No bins</option>'}</select>
+            <select id="exe-bin">${allBins.map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('') || '<option disabled>No bins</option>'}</select>
           </div>
-          <div style="align-self:end"><button class="btn ok" onclick="toggleSheet('sheetScan',true);populateScanBins()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button></div>
-          <div style="align-self:end"><button class="btn warn" onclick="toggleSheet('sheetFreeze',true);populateFreezeBins()"><span class="ico-inline" data-ic="freeze"></span> Freeze Bin</button></div>
+          <div style="align-self:end"><button class="btn ok" onclick="openScanSheet()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button></div>
+          <div style="align-self:end"><button class="btn warn" onclick="openFreezeSheet()"><span class="ico-inline" data-ic="freeze"></span> Freeze Bin</button></div>
         </div>
         ${listScans(state.scans.filter(s=>s.planId===pid).slice(-12).reverse())}
       </div>
@@ -402,16 +403,6 @@ function renderExecute(){
       </div>
     </div>`;
   paintIcons(view);
-}
-function populateScanBins(){
-  const pid = state.currentPlanId;
-  const sel = document.getElementById('sc-bin'); if(!sel) return;
-  sel.innerHTML = allBinsOfPlan(pid).map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
-}
-function populateFreezeBins(){
-  const pid = state.currentPlanId;
-  const sel = document.getElementById('fz-bin'); if(!sel) return;
-  sel.innerHTML = allBinsOfPlan(pid).map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
 }
 function listScans(arr){
   if(!arr.length) return empty('No scans yet.');
@@ -427,6 +418,77 @@ function listScans(arr){
       <div class="muted" style="margin-top:2px;font-size:var(--fs-sm)">${r.blind?'Blind':''} ${esc(r.note||'')}</div>
     </div>`).join('')}
   </div>`;
+}
+function openScanSheet(){ toggleSheet('sheetScan',true); populateScanBins(); bindScanUI(); }
+function openFreezeSheet(){ toggleSheet('sheetFreeze',true); populateFreezeBins(); }
+
+function toggleSheet(id, on){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.style.display = on ? 'flex' : 'none';
+  if(!on){ stopCamera(); }
+}
+function populateScanBins(){
+  const pid = state.currentPlanId;
+  const sel = document.getElementById('sc-bin'); if(!sel) return;
+  sel.innerHTML = allBinsOfPlan(pid).map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
+}
+function populateFreezeBins(){
+  const pid = state.currentPlanId;
+  const sel = document.getElementById('fz-bin'); if(!sel) return;
+  sel.innerHTML = allBinsOfPlan(pid).map(b=>{const [pid2]=b.routeKey.split("|");return `<option value="${b.binId}">${pid2} • ${b.section} • ${b.binId}</option>`}).join('');
+}
+
+// Scan submit
+function submitScan(){
+  if(!ensurePlan()) return;
+  const pid = state.currentPlanId;
+  const rkbin = document.getElementById('sc-bin').value || '';
+  const parts = rkbin.split('::');
+  if(parts.length<2){ alert('Select a Bin'); return; }
+  const rk = parts[0], binId = parts[1];
+  const exists = state.bins.some(b=>b.planId===pid && b.routeKey===rk && b.binId===binId);
+  if(!exists){ alert('Bin must belong to current plan & selected route.'); return; }
+  const sku = document.getElementById('sc-sku').value.trim();
+  const qty = +document.getElementById('sc-qty').value||0;
+  const blind = document.getElementById('sc-blind').value==='true';
+  const note = document.getElementById('sc-note').value.trim();
+  if(!sku || qty<=0){ alert('SKU and Qty>0 required'); return; }
+  state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
+  persist(); toggleSheet('sheetScan',false); render();
+}
+function markDiscrepancy(){
+  if(!ensurePlan()) return;
+  const pid = state.currentPlanId;
+  const rkbin = document.getElementById('sc-bin').value || '';
+  const parts = rkbin.split('::');
+  if(parts.length<2){ alert('Select a Bin'); return; }
+  const binId = parts[1];
+  const sku = document.getElementById('sc-sku').value.trim();
+  const qty = +document.getElementById('sc-qty').value||0;
+  const id = 'D-' + Math.floor(Math.random()*9000+1000);
+  state.discrepancies.push({planId:pid, id, type:'QtyMismatch', binId, sku, expected:qty+2, counted:qty, status:'Open'});
+  persist(); toggleSheet('sheetScan',false); render();
+}
+
+// Freeze
+function freezeBin(){
+  if(!ensurePlan()) return;
+  const pid = state.currentPlanId;
+  const binId = document.getElementById('fz-bin').value;
+  const reason = document.getElementById('fz-reason').value.trim();
+  if(!state.bins.some(b=>b.planId===pid && b.binId===binId)){ alert('Bin must belong to current plan'); return; }
+  state.freezes.push({planId:pid, binId, reason, when:Date.now()}); persist(); toggleSheet('sheetFreeze',false); render();
+}
+function unfreezeBin(){
+  if(!ensurePlan()) return;
+  const pid = state.currentPlanId;
+  const binId = document.getElementById('fz-bin').value;
+  state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId===binId)); persist(); toggleSheet('sheetFreeze',false); render();
+}
+function unfreezeDirect(binId){
+  const pid = state.currentPlanId;
+  state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId===binId)); persist(); render();
 }
 
 // Validate
@@ -484,6 +546,26 @@ function listQueue(arr){
     </div>`).join('')}
   </div>`;
 }
+function insertMockException(){
+  const pid = state.currentPlanId;
+  const b = allBinsOfPlan(pid)[0]; if(!b){ alert('Need at least one bin'); return; }
+  const id = 'D-' + Math.floor(Math.random()*9000+1000);
+  state.discrepancies.push({planId:pid, id, type:'SerialMismatch', binId:b.binId, sku:'SER-0001', expected:1, counted:1, status:'Open'});
+  persist(); renderValidate();
+}
+function saveCfg(){
+  if(!ensurePlan()) return;
+  const pid = state.currentPlanId;
+  state.cfg = {
+    planId:pid,
+    blind: document.getElementById('cfg-blind').value==='true',
+    twoMatch: document.getElementById('cfg-two').value==='true',
+    photo: document.getElementById('cfg-photo').value==='true',
+    maxVariance: +document.getElementById('cfg-var').value||5
+  };
+  persist(); alert('Validation rules saved for this plan.');
+}
+function closeDisc(id){ const it = state.discrepancies.find(x=>x.id===id && x.planId===state.currentPlanId); if(it){ it.status='Closed'; persist(); renderValidate(); }}
 
 // Reports
 function renderReports(){
@@ -520,21 +602,18 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
-// Actions (respect links)
+// Actions
 function savePlan(){
   const id = document.getElementById('pl-id').value.trim();
   if(!id){ alert('Plan ID required'); return; }
   const site = document.getElementById('pl-site').value.trim();
   const asof = document.getElementById('pl-asof').value.trim();
   const repeat = document.getElementById('pl-repeat').value.trim();
-  const scope = {category:document.getElementById('pl-cat').value.trim(),
-                 brand:document.getElementById('pl-brand').value.trim(),
-                 vendor:document.getElementById('pl-vendor').value.trim()};
+  const scope = {category:document.getElementById('pl-cat').value.trim(), brand:document.getElementById('pl-brand').value.trim(), vendor:document.getElementById('pl-vendor').value.trim()};
   let p = state.plans.find(x=>x.id===id);
   if(!p){ p = {id, site, asof, repeat, scope, sections:[]}; state.plans.push(p); }
   else { Object.assign(p, {site, asof, repeat, scope}); }
-  state.currentPlanId = id; persist(); alert('Plan saved & set active.');
-  render(); refreshActivePlanBadge();
+  state.currentPlanId = id; persist(); alert('Plan saved & set active.'); render(); refreshActivePlanBadge();
 }
 function insertMockPlan(){
   const id = 'S-' + Math.floor(Math.random()*9000+1000);
@@ -549,7 +628,6 @@ function systemGuidedRoute(){
   const pid = state.currentPlanId;
   const r = {planId:pid, section, type:'system', stops:Array.from({length:per},(_,i)=>`${section}-${String(i+1).padStart(2,'0')}`)};
   state.routes.push(r);
-  // derive bins
   r.stops.forEach(b=>state.bins.push({planId:pid, routeKey:keyOf(r), binId:b, section}));
   persist(); render();
 }
@@ -569,115 +647,79 @@ function delRoute(i){
   const pid = state.currentPlanId;
   const r = routesOfPlan(pid)[i]; if(!r) return;
   const key = keyOf(r);
-  // remove assignments & bins & scans tied to this route
   state.assignments = state.assignments.filter(a=>!(a.planId===pid && a.routeKey===key));
   state.bins = state.bins.filter(b=>!(b.planId===pid && b.routeKey===key));
   state.scans = state.scans.filter(s=>!(s.planId===pid && s.routeKey===key));
   state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId && r.stops.includes(f.binId)));
   state.discrepancies = state.discrepancies.filter(d=>!(d.planId===pid && d.binId && r.stops.includes(d.binId)));
-  // remove route
   const idx = state.routes.findIndex(x=>x.planId===pid && keyOf(x)===key);
   if(idx>=0) state.routes.splice(idx,1);
   persist(); render();
 }
-function addAssign(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  const rk = document.getElementById('as-route').value;
-  const user = document.getElementById('as-user').value.trim();
-  if(!rk || !user){ alert('Route & User required'); return; }
-  // must be existing route
-  const r = state.routes.find(x=>keyOf(x)===rk && x.planId===pid);
-  if(!r){ alert('Selected route not found in current plan.'); return; }
-  state.assignments.push({planId:pid, user, routeKey:rk}); persist(); render();
-}
-function toggleSheet(id, on){ document.getElementById(id).style.display = on?'flex':'none'; }
-function submitScan(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  const rkbin = document.getElementById('sc-bin').value;
-  const [rk, binId] = rkbin.split('::');
-  const exists = state.bins.some(b=>b.planId===pid && b.routeKey===rk && b.binId===binId);
-  if(!exists){ alert('Bin must belong to current plan & selected route.'); return; }
-  const sku = document.getElementById('sc-sku').value.trim();
-  const qty = +document.getElementById('sc-qty').value||0;
-  const blind = document.getElementById('sc-blind').value==='true';
-  const note = document.getElementById('sc-note').value.trim();
-  if(!sku || qty<=0){ alert('SKU and Qty>0 required'); return; }
-  state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
-  persist(); toggleSheet('sheetScan',false); render();
-}
-function markDiscrepancy(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  const rkbin = document.getElementById('sc-bin').value;
-  const [rk, binId] = rkbin.split('::');
-  const sku = document.getElementById('sc-sku').value.trim();
-  const qty = +document.getElementById('sc-qty').value||0;
-  const id = 'D-' + Math.floor(Math.random()*9000+1000);
-  state.discrepancies.push({planId:pid, id, type:'QtyMismatch', binId, sku, expected:qty+2, counted:qty, status:'Open'});
-  persist(); toggleSheet('sheetScan',false); render();
-}
-function freezeBin(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  const binId = document.getElementById('fz-bin').value;
-  const reason = document.getElementById('fz-reason').value.trim();
-  if(!state.bins.some(b=>b.planId===pid && b.binId===binId)){ alert('Bin must belong to current plan'); return; }
-  state.freezes.push({planId:pid, binId, reason, when:Date.now()}); persist(); toggleSheet('sheetFreeze',false); render();
-}
-function unfreezeBin(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  const binId = document.getElementById('fz-bin').value;
-  state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId===binId)); persist(); toggleSheet('sheetFreeze',false); render();
-}
-function unfreezeDirect(binId){
-  const pid = state.currentPlanId;
-  state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId===binId)); persist(); render();
-}
-function insertMockException(){
-  const pid = state.currentPlanId;
-  const b = allBinsOfPlan(pid)[0]; if(!b){ alert('Need at least one bin'); return; }
-  const id = 'D-' + Math.floor(Math.random()*9000+1000);
-  state.discrepancies.push({planId:pid, id, type:'SerialMismatch', binId:b.binId, sku:'SER-0001', expected:1, counted:1, status:'Open'});
-  persist(); renderValidate();
-}
-function saveCfg(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  state.cfg = {
-    planId:pid,
-    blind: document.getElementById('cfg-blind').value==='true',
-    twoMatch: document.getElementById('cfg-two').value==='true',
-    photo: document.getElementById('cfg-photo').value==='true',
-    maxVariance: +document.getElementById('cfg-var').value||5
-  };
-  persist(); alert('Validation rules saved for this plan.');
-}
-function closeDisc(id){ const it = state.discrepancies.find(x=>x.id===id && x.planId===state.currentPlanId); if(it){ it.status='Closed'; persist(); renderValidate(); }}
-
-// Utils
 function empty(text){
   return `<div class="card" style="text-align:center;padding:12px">
     <div class="ico-inline" data-ic="boxes" style="margin:0 auto 4px auto"></div>
     <div class="muted">${esc(text)}</div>
   </div>`;
 }
-function esc(s){return (s??'').toString().replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
-function fmtWhen(t){const d=new Date(t||Date.now()); return d.toLocaleString();}
 
-// Init
-paintIcons(document);
-
-function refreshActivePlanBadge(){
-  const badge = document.getElementById('activePlanBadge');
-  if(!badge) return;
-  const p = currentPlan();
-  badge.innerHTML = 'Plan: <b>' + (p? esc(p.id) : '—') + '</b>';
+// Camera / Barcode
+let camStream = null;
+let scanTimer = null;
+const supportedFormats = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code','data_matrix','pdf417'];
+function hasBarcodeDetector(){ return typeof window.BarcodeDetector !== 'undefined'; }
+async function startCamera(){
+  const note = document.getElementById('scanSupportNote');
+  if(!note) return;
+  note.textContent = hasBarcodeDetector() ? 'Scanning… allow camera access.' : 'BarcodeDetector not supported; manual entry only.';
+  const video = document.getElementById('camPreview');
+  if(!video){ note.textContent='Preview not found.'; return; }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' }, audio:false });
+    video.srcObject = camStream; await video.play();
+    const startBtn = document.getElementById('btnStartScan'); const stopBtn = document.getElementById('btnStopScan');
+    if(startBtn) startBtn.disabled = true; if(stopBtn) stopBtn.disabled = false;
+    if(hasBarcodeDetector()){
+      const detector = new BarcodeDetector({ formats: supportedFormats });
+      scanTimer = setInterval(async ()=>{
+        try{
+          const barcodes = await detector.detect(video);
+          if(barcodes && barcodes.length){
+            const best = barcodes[0]; const code = best.rawValue || '';
+            if(code){
+              const skuEl = document.getElementById('sc-sku');
+              if(skuEl){ skuEl.value = code; skuEl.classList.remove('flash'); void skuEl.offsetWidth; skuEl.classList.add('flash'); }
+              stopCamera();
+            }
+          }
+        }catch(e){ /* ignore */ }
+      }, 300);
+      note.textContent = 'Scanning…';
+    }
+  }catch(err){
+    note.textContent = 'Cannot open camera. Check permissions.';
+  }
 }
-
-refreshActivePlanBadge();
+function stopCamera(){
+  const note = document.getElementById('scanSupportNote');
+  if(scanTimer){ clearInterval(scanTimer); scanTimer = null; }
+  if(camStream){ for(const t of camStream.getTracks()) t.stop(); camStream = null; }
+  const startBtn = document.getElementById('btnStartScan'); const stopBtn = document.getElementById('btnStopScan');
+  if(startBtn) startBtn.disabled = false; if(stopBtn) stopBtn.disabled = true;
+  if(note) note.textContent = '';
+}
+function toggleCamRow(show){ const row = document.getElementById('camRow'); if(row) row.style.display = show?'flex':'none'; }
+function bindScanUI(){
+  const btnToggle = document.getElementById('btnCamToggle');
+  const btnStart = document.getElementById('btnStartScan');
+  const btnStop = document.getElementById('btnStopScan');
+  if(btnToggle){ btnToggle.onclick = ()=>{ const vis = document.getElementById('camRow').style.display!=='none'; toggleCamRow(!vis); }; }
+  if(btnStart){ btnStart.onclick = startCamera; }
+  if(btnStop){ btnStop.onclick = stopCamera; }
+  toggleCamRow(true);
+  const note = document.getElementById('scanSupportNote');
+  if(note && !hasBarcodeDetector()) note.textContent = 'BarcodeDetector not supported. Manual entry only.';
+}
 </script>
 </body>
 </html>
