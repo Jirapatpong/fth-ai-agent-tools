@@ -142,9 +142,12 @@
 <script>
 // ===== STATE FIRST =====
 let stateReady = false;
+// State structure to hold all application data, primarily stored in localStorage for persistence.
 const state = {
   plans: [], routes: [], bins: [], assignments: [], scans: [], discrepancies: [], freezes: [], cfgByPlan: {}, currentPlanId: null
 };
+
+// Attempt to load state from localStorage.
 try{
   state.plans = JSON.parse(localStorage.getItem('pc_plans')||'[]') || [];
   state.routes = JSON.parse(localStorage.getItem('pc_routes')||'[]') || [];
@@ -156,8 +159,9 @@ try{
   state.cfgByPlan = JSON.parse(localStorage.getItem('pc_cfgByPlan')||'{}') || {};
   state.currentPlanId = localStorage.getItem('pc_currentPlanId') || null;
   stateReady = true;
-}catch(_){ stateReady = true; }
+}catch(_){ stateReady = true; } // State is ready even if load fails, it just starts empty.
 
+// Persist the current state to localStorage.
 function persist(){
   try{
     localStorage.setItem('pc_plans', JSON.stringify(state.plans));
@@ -172,7 +176,7 @@ function persist(){
   }catch(_){}
 }
 
-// ===== ICONS =====
+// ===== ICONS (Inline SVG for simplicity and performance) =====
 const ICONS = {
   plan:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M3 8h18"/></svg>`,
@@ -195,9 +199,10 @@ const ICONS = {
   map:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,
   arrow:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`
 };
+// Function to inject SVG icons into elements with data-ic attribute.
 function paintIcons(scope=document){ scope.querySelectorAll('[data-ic]').forEach(el=>{ el.innerHTML = ICONS[el.getAttribute('data-ic')]||''; }); }
 
-// ===== AUTH =====
+// ===== AUTH (Simple localStorage based) =====
 let currentUser = null;
 try{ currentUser = localStorage.getItem('pc_user') || null; }catch(_){ currentUser = null; }
 function showAppChrome(show){
@@ -238,7 +243,8 @@ function renderLogin(){
 function fillDemo(){ const u=document.getElementById('lg-user'); const p=document.getElementById('lg-pass'); if(u) u.value='alice'; if(p) p.value='demo123'; }
 function login(){
   const u = (document.getElementById('lg-user')||{}).value?.trim();
-  if(!u){ alert('Enter a username'); return; }
+  // Using custom simple modal/message box instead of alert()
+  if(!u){ showMessage('Error', 'Enter a username'); return; }
   currentUser = u;
   try{ if(document.getElementById('lg-remember')?.checked){ localStorage.setItem('pc_user', u); } }catch(_){}
   showMain();
@@ -269,8 +275,18 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
 window.addEventListener('hashchange', render);
 function render(){
   if(!stateReady) return;
+  // Check if we are still on the login page
   if(document.getElementById('loginView').style.display==='block') return;
   const route = (location.hash||'#plan').replace('#','');
+  // Ensure correct tab is active based on URL hash
+  document.querySelectorAll('.tab-btn').forEach(x => {
+    if (x.dataset.view === route) {
+      x.classList.add('active');
+    } else {
+      x.classList.remove('active');
+    }
+  });
+
   switch(route){
     case 'plan': return renderPlan();
     case 'assign': return renderAssign();
@@ -295,7 +311,7 @@ function refreshActivePlanBadge(){
   badge.innerHTML = 'Plan: <b>' + (p? esc(p.id) : '—') + '</b>';
 }
 
-// ===== PLAN =====
+// ===== PLAN VIEW FUNCTIONS =====
 function planSelector(){
   return `<div class="row" style="align-items:end">
     <div style="flex:1;min-width:200px">
@@ -364,12 +380,12 @@ function renderRoutesTable(){
   const list = routesOfPlan(state.currentPlanId);
   if(!list.length) return empty('No routes for this plan.');
   return `<table><thead><tr><th>Plan</th><th>Section</th><th>Type</th><th>Stops / Bins</th><th></th></tr></thead>
-    <tbody>${list.map((r,i)=>`<tr>
+    <tbody>${list.map(r=>`<tr>
       <td data-label="Plan">${esc(r.planId)}</td>
       <td data-label="Section">${esc(r.section)}</td>
       <td data-label="Type"><span class="pill">${r.type}</span></td>
       <td data-label="Stops">${esc(r.stops.join(', '))}</td>
-      <td data-label=""><button class="btn bad" onclick="delRoute(${i})"><span class="ico-inline" data-ic="alert"></span> Delete</button></td>
+      <td data-label=""><button class="btn bad" onclick="delRoute('${keyOf(r)}')"><span class="ico-inline" data-ic="alert"></span> Delete</button></td>
     </tr>`).join('')}</tbody></table>`;
 }
 function renderBinTargets(){
@@ -378,9 +394,11 @@ function renderBinTargets(){
   const bins = allBinsOfPlan(pid);
   if(!bins.length) return '<div class="muted">No bins yet. Create routes to generate bins.</div>';
   const rows = bins.map((b,i)=>{
-    const expected = (b.expectedSkus!=null? b.expectedSkus : (b.expectedItems!=null?b.expectedItems:1)); // migrate
+    // Get expected SKUs (using expectedSkus property, falling back to older expectedItems)
+    const expected = (b.expectedSkus!=null? b.expectedSkus : (b.expectedItems!=null?b.expectedItems:1));
     const skuCnt = distinctSkuCountForBin(pid, b.binId);
     const qtySum = sumQtyForBin(pid, b.binId);
+    // Logic for completion: if expected > 0, done if counted >= expected. If expected = 0 (no target), done if counted > 0.
     const done = expected>0 ? skuCnt>=expected : skuCnt>0;
     return `<tr>
       <td data-label="Bin">${esc(b.section)} • ${esc(b.binId)}</td>
@@ -396,7 +414,9 @@ function renderBinTargets(){
 function setBinExpected(idxInPlanBins, val){
   const pid = state.currentPlanId; if(!pid) return;
   const bins = allBinsOfPlan(pid);
+  // Find the bin object using the index within the filtered list of bins for the current plan
   const b = bins[idxInPlanBins]; if(!b) return;
+  // Find the original bin reference in the global state.bins array
   const ref = state.bins.find(x=>x.planId===pid && x.binId===b.binId && x.routeKey===b.routeKey);
   if(!ref) return;
   ref.expectedSkus = Math.max(0, parseInt(val||0,10));
@@ -410,7 +430,7 @@ function setAllBinsExpected(val){
 
 function savePlan(){
   const id = document.getElementById('pl-id').value.trim();
-  if(!id){ alert('Plan ID required'); return; }
+  if(!id){ showMessage('Error', 'Plan ID required'); return; }
   const site = document.getElementById('pl-site').value.trim();
   const asof = document.getElementById('pl-asof').value.trim();
   const repeat = document.getElementById('pl-repeat').value.trim();
@@ -420,7 +440,7 @@ function savePlan(){
   let p = state.plans.find(x=>x.id===id);
   if(!p){ p = {id, site, asof, repeat, scope}; state.plans.push(p); }
   else { Object.assign(p, {site, asof, repeat, scope}); }
-  state.currentPlanId = id; persist(); alert('Plan saved & set active.');
+  state.currentPlanId = id; persist(); showMessage('Success', 'Plan saved & set active.');
   render(); refreshActivePlanBadge();
 }
 function seedDemo(){
@@ -449,13 +469,13 @@ function seedDemo(){
     pushScan(rkMan,'B02-01','EAN-3234567890123',2);
   }
 
-  persist(); alert('Inserted mock data for Action Plan DEMO-PLAN-001'); render(); refreshActivePlanBadge();
+  persist(); showMessage('Success', 'Inserted mock data for Action Plan DEMO-PLAN-001'); render(); refreshActivePlanBadge();
 }
 function systemGuidedRoute(){
-  if(!state.currentPlanId) return alert('Save a Plan first.');
+  if(!state.currentPlanId) return showMessage('Error', 'Save a Plan first.');
   const section = document.getElementById('sg-section').value.trim();
   const per = +document.getElementById('sg-stops').value||0;
-  if(!section || per<=0){ alert('Section & Stops per Route required'); return; }
+  if(!section || per<=0){ showMessage('Error', 'Section & Stops per Route required'); return; }
   const pid = state.currentPlanId;
   const r = {planId:pid, section, type:'system', stops:Array.from({length:per},(_,i)=>`${section}-${String(i+1).padStart(2,'0')}`)};
   state.routes.push(r);
@@ -463,10 +483,10 @@ function systemGuidedRoute(){
   persist(); render();
 }
 function manualRouteCreate(){
-  if(!state.currentPlanId) return alert('Save a Plan first.');
+  if(!state.currentPlanId) return showMessage('Error', 'Save a Plan first.');
   const section = document.getElementById('mr-section').value.trim();
   const list = document.getElementById('mr-stops').value.trim();
-  if(!section||!list){ alert('Enter Section & Stops'); return; }
+  if(!section||!list){ showMessage('Error', 'Enter Section & Stops'); return; }
   const stops = list.split(',').map(s=>s.trim()).filter(Boolean);
   const pid = state.currentPlanId;
   const r = {planId:pid, section, type:'manual', stops};
@@ -474,21 +494,31 @@ function manualRouteCreate(){
   stops.forEach(b=>state.bins.push({planId:pid, routeKey:keyOf(r), binId:b, section, expectedSkus:1}));
   persist(); render();
 }
-function delRoute(i){
-  const pid = state.currentPlanId;
-  const r = routesOfPlan(pid)[i]; if(!r) return;
-  const key = keyOf(r);
-  state.assignments = state.assignments.filter(a=>!(a.planId===pid && a.routeKey===key));
-  state.bins = state.bins.filter(b=>!(b.planId===pid && b.routeKey===key));
-  state.scans = state.scans.filter(s=>!(s.planId===pid && s.routeKey===key));
-  state.freezes = state.freezes.filter(f=>!(f.planId===pid && r.stops.includes(f.binId)));
-  state.discrepancies = state.discrepancies.filter(d=>!(d.planId===pid && r.stops.includes(d.binId)));
-  const idx = state.routes.findIndex(x=>x.planId===pid && keyOf(x)===key);
-  if(idx>=0) state.routes.splice(idx,1);
-  persist(); render();
+function delRoute(key){
+  // Using custom simple modal/message box instead of confirm()
+  showConfirm('Delete Route', 'Are you sure you want to delete this route and all associated data?', ()=>{
+    const pid = state.currentPlanId;
+    const r = state.routes.find(x => x.planId === pid && keyOf(x) === key);
+    if(!r) return;
+    
+    // Remove all related data
+    state.assignments = state.assignments.filter(a=>!(a.planId===pid && a.routeKey===key));
+    state.bins = state.bins.filter(b=>!(b.planId===pid && b.routeKey===key));
+    state.scans = state.scans.filter(s=>!(s.planId===pid && s.routeKey===key));
+    
+    // Remove freezes and discrepancies that targeted bins in this route
+    state.freezes = state.freezes.filter(f=>!(f.planId===pid && r.stops.includes(f.binId)));
+    state.discrepancies = state.discrepancies.filter(d=>!(d.planId===pid && r.stops.includes(d.binId)));
+    
+    // Remove the route itself
+    const idx = state.routes.findIndex(x=>x.planId===pid && keyOf(x)===key);
+    if(idx>=0) state.routes.splice(idx,1);
+
+    persist(); render();
+  });
 }
 
-// ===== ASSIGN =====
+// ===== ASSIGN VIEW FUNCTIONS =====
 function renderAssign(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
@@ -532,29 +562,39 @@ function addAssign(){
   const pid = state.currentPlanId;
   const rk = (document.getElementById('as-route')||{}).value;
   const user = (document.getElementById('as-user')||{}).value.trim();
-  if(!rk || !user){ alert('Route & User required'); return; }
+  if(!rk || !user){ showMessage('Error', 'Route & User required'); return; }
   const r = state.routes.find(x=>keyOf(x)===rk && x.planId===pid);
-  if(!r){ alert('Selected route not found in current plan.'); return; }
-  state.assignments.push({planId:pid, user, routeKey:rk}); persist(); render();
+  if(!r){ showMessage('Error', 'Selected route not found in current plan.'); return; }
+  // Check for existing assignment for this route
+  const existingIndex = state.assignments.findIndex(a => a.planId === pid && a.routeKey === rk);
+  if (existingIndex !== -1) {
+    state.assignments[existingIndex].user = user; // Update existing assignment
+  } else {
+    state.assignments.push({planId:pid, user, routeKey:rk}); // Add new assignment
+  }
+  persist(); render();
 }
 function editAssign(routeKey, oldUser){
   const pid = state.currentPlanId;
   const a = state.assignments.find(x=>x.planId===pid && x.routeKey===routeKey && x.user===oldUser);
-  if(!a) return alert('Assignment not found');
-  const nu = prompt('Edit user name', a.user||'');
-  if(!nu) return;
-  a.user = nu.trim();
-  persist(); renderAssign();
+  if(!a) return showMessage('Error', 'Assignment not found');
+
+  // Using custom simple modal/message box instead of prompt()
+  showPrompt('Edit User Name', 'Enter the new user name for this assignment:', a.user || '', (nu)=>{
+    if(!nu) return;
+    a.user = nu.trim();
+    persist(); renderAssign();
+  });
 }
 
-// ===== EXECUTE =====
+// ===== EXECUTE VIEW FUNCTIONS =====
 let camStream = null;
 async function startCam(){
   try{
     stopCam();
     camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
     const v = document.getElementById('cam'); if(v){ v.srcObject = camStream; }
-  }catch(e){ alert('Camera not available: '+e.message); }
+  }catch(e){ showMessage('Camera Error', 'Camera not available: '+e.message); }
 }
 function stopCam(){
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
@@ -578,14 +618,17 @@ function renderExecute(){
             <select id="exe-bin">${
               allBins.length? allBins.map(b=>{
                 const frozen = state.freezes.some(f=>f.planId===pid && f.binId===b.binId);
-                const [pid2]=b.routeKey.split('|');
-                return `<option ${frozen?'disabled':''} value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}${frozen?' (Frozen)':''}</option>`;
+                const routeInfo = state.routes.find(r => keyOf(r) === b.routeKey);
+                const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
+                const assignedClass = (routeUser === currentUser) ? 'primary' : (routeUser === 'Unassigned' ? '' : 'warn');
+                return `<option ${frozen?'disabled':''} data-user="${esc(routeUser)}" class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)})${frozen?' (Frozen)':''}</option>`;
               }).join('') : '<option disabled>No bins</option>'
             }</select>
           </div>
           <div style="align-self:end"><button class="btn ok" onclick="openScanSheet()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button></div>
         </div>
         <div class="muted" id="binStat" style="margin: -4px 0 6px 0"></div>
+        <h4>Recent Scans (Last 12)</h4>
         ${listScans(state.scans.filter(s=>s.planId===pid).slice(-12).reverse())}
       </div>
     </div>`;
@@ -595,6 +638,7 @@ function renderExecute(){
     const parts = v.split('::'); const binId = parts[1];
     if(!binId){ document.getElementById('binStat').innerHTML=''; return; }
     const b = allBinsOfPlan(pid).find(x=>x.binId===binId);
+    // Get expected SKUs (using expectedSkus property, falling back to older expectedItems)
     const exp = (b && (b.expectedSkus!=null?b.expectedSkus:(b.expectedItems!=null?b.expectedItems:1)));
     const skuCnt = distinctSkuCountForBin(pid, binId);
     const qtySum = sumQtyForBin(pid, binId);
@@ -609,8 +653,9 @@ function populateScanBins(){
   const sel = document.getElementById('sc-bin'); if(!sel) return;
   sel.innerHTML = allBinsOfPlan(pid).map(b=>{
     const frozen = state.freezes.some(f=>f.planId===pid && f.binId===b.binId);
-    const [pid2]=b.routeKey.split('|');
-    return `<option ${frozen?'disabled':''} value="${b.routeKey}::${b.binId}">${pid2} • ${b.section} • ${b.binId}${frozen?' (Frozen)':''}</option>`;
+    const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
+    const assignedClass = (routeUser === currentUser) ? 'text-blue-600' : (routeUser === 'Unassigned' ? 'text-gray-600' : 'text-yellow-600');
+    return `<option ${frozen?'disabled':''} class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)})${frozen?' (Frozen)':''}</option>`;
   }).join('');
 }
 function listScans(arr){
@@ -632,17 +677,17 @@ function submitScan(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
   const rkbin = document.getElementById('sc-bin').value;
-  if(!rkbin){ alert('Select a bin'); return; }
+  if(!rkbin){ showMessage('Error', 'Select a bin'); return; }
   const [rk, binId] = rkbin.split('::');
   const exists = state.bins.some(b=>b.planId===pid && b.routeKey===rk && b.binId===binId);
-  if(!exists){ alert('Bin must belong to current plan & selected route.'); return; }
+  if(!exists){ showMessage('Error', 'Bin must belong to current plan & selected route.'); return; }
   const isFrozen = state.freezes.some(f=>f.planId===pid && f.binId===binId);
-  if(isFrozen){ alert('This bin is frozen. You cannot scan/count until it is unfrozen.'); return; }
+  if(isFrozen){ showMessage('Error', 'This bin is frozen. You cannot scan/count until it is unfrozen.'); return; }
   const sku = document.getElementById('sc-sku').value.trim();
   const qty = +document.getElementById('sc-qty').value||0;
   const blind = document.getElementById('sc-blind').value==='true';
   const note = document.getElementById('sc-note').value.trim();
-  if(!sku || qty<=0){ alert('SKU and Qty>0 required'); return; }
+  if(!sku || qty<=0){ showMessage('Error', 'SKU and Qty>0 required'); return; }
   state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
   persist(); toggleSheet('sheetScan',false); render();
 }
@@ -650,15 +695,17 @@ function markDiscrepancy(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
   const rkbin = document.getElementById('sc-bin').value;
+  if(!rkbin){ showMessage('Error', 'Select a bin'); return; }
   const [rk, binId] = rkbin.split('::');
   const sku = document.getElementById('sc-sku').value.trim();
   const qty = +document.getElementById('sc-qty').value||0;
   const id = 'D-' + Math.floor(Math.random()*9000+1000);
   state.discrepancies.push({planId:pid, id, type:'QtyMismatch', binId, sku, expected:qty+2, counted:qty, status:'Open'});
   persist(); toggleSheet('sheetScan',false); render();
+  showMessage('Success', 'Discrepancy marked. Review in Reports/Validation tab.');
 }
 
-// ===== VALIDATE =====
+// ===== VALIDATE VIEW FUNCTIONS =====
 function renderValidate(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
@@ -704,6 +751,11 @@ function renderValidate(){
           <button class="btn ok" onclick="vcUnfreeze()"><span class="ico-inline" data-ic="flame"></span> Unfreeze</button>
         </div>
       </div>
+
+      <div class="card">
+        <h3><span class="ico-inline" data-ic="alert"></span> Open Discrepancies</h3>
+        ${listDiscrepancies(state.discrepancies.filter(d=>d.planId===pid && d.status==='Open'))}
+      </div>
     </div>`;
   const vcSel = document.getElementById('vc-bin');
   if(vcSel){
@@ -716,19 +768,45 @@ function renderValidate(){
   }
   paintIcons(view); refreshActivePlanBadge();
 }
+function listDiscrepancies(arr){
+  if(!arr.length) return empty('No open discrepancies.');
+  return `<table><thead><tr><th>ID</th><th>Bin</th><th>SKU</th><th>Type</th><th>Expected</th><th>Counted</th><th>Action</th></tr></thead>
+    <tbody>${arr.map((d,i)=>`<tr>
+      <td data-label="ID">${esc(d.id)}</td>
+      <td data-label="Bin">${esc(d.binId)}</td>
+      <td data-label="SKU">${esc(d.sku)}</td>
+      <td data-label="Type">${esc(d.type)}</td>
+      <td data-label="Expected">${d.expected}</td>
+      <td data-label="Counted">${d.counted}</td>
+      <td data-label="Action"><button class="btn ok" onclick="resolveDiscrepancy('${d.id}')">Resolve</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+function resolveDiscrepancy(id){
+  const d = state.discrepancies.find(x=>x.id===id);
+  if(!d) return;
+  // Using custom simple modal/message box instead of confirm()
+  showConfirm('Resolve Discrepancy', `Resolve discrepancy ${d.id}? (Mark as Closed)`, ()=>{
+    d.status = 'Closed';
+    persist(); renderValidate();
+    showMessage('Success', `Discrepancy ${id} resolved.`);
+  });
+}
+
 function vcFreeze(){
   const pid = state.currentPlanId;
   const binId = (document.getElementById('vc-bin')||{}).value;
   const reason = (document.getElementById('vc-reason')||{}).value||'Frozen';
-  if(!binId) return alert('Select a bin');
-  if(state.freezes.some(f=>f.planId===pid && f.binId===binId)) return alert('Already frozen');
+  if(!binId) return showMessage('Error', 'Select a bin');
+  if(state.freezes.some(f=>f.planId===pid && f.binId===binId)) return showMessage('Alert', 'Bin already frozen');
   state.freezes.push({planId:pid, binId, reason, when:Date.now()}); persist(); renderValidate();
+  showMessage('Success', `Bin ${binId} successfully frozen.`);
 }
 function vcUnfreeze(){
   const pid = state.currentPlanId;
   const binId = (document.getElementById('vc-bin')||{}).value;
-  if(!binId) return alert('Select a bin');
+  if(!binId) return showMessage('Error', 'Select a bin');
   state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId===binId)); persist(); renderValidate();
+  showMessage('Success', `Bin ${binId} successfully unfrozen.`);
 }
 function saveCfg(){
   if(!ensurePlan()) return;
@@ -739,10 +817,10 @@ function saveCfg(){
     photo: document.getElementById('cfg-photo').value==='true',
     maxVariance: +document.getElementById('cfg-var').value||5
   };
-  persist(); alert('Validation rules saved for this plan.');
+  persist(); showMessage('Success', 'Validation rules saved for this plan.');
 }
 
-// ===== REPORTS =====
+// ===== REPORTS VIEW FUNCTIONS =====
 function kpiData(pid){
   const routes = state.routes.filter(r=>r.planId===pid);
   const bins = state.bins.filter(b=>b.planId===pid);
@@ -768,17 +846,26 @@ function kpiData(pid){
     byUser[u].assignedRoutes += 1;
     const rBins = state.bins.filter(b=>b.planId===pid && b.routeKey===a.routeKey);
     byUser[u].bins += rBins.length;
-    const anyScanOnRoute = scans.some(s=>s.routeKey===a.routeKey);
-    if(anyScanOnRoute) byUser[u].countedRoutes += 1;
-    const doneOnRoute = new Set(scans.filter(s=>s.routeKey===a.routeKey).map(s=>s.binId)).size;
-    byUser[u].binsDone += doneOnRoute;
+    const binsScanned = new Set(scans.filter(s=>s.routeKey===a.routeKey).map(s=>s.binId));
+    if(binsScanned.size > 0) byUser[u].countedRoutes += 1; // Route is counted if at least one bin in it has a scan
+    
+    // Count bins completed on this route (based on plan expectations)
+    let doneOnRouteCount = 0;
+    rBins.forEach(b => {
+      const exp = (b.expectedSkus!=null?b.expectedSkus:(b.expectedItems!=null?b.expectedItems:1));
+      const skuCnt = distinctSkuCountForBin(pid, b.binId);
+      const isDone = exp>0 ? skuCnt>=exp : skuCnt>0;
+      if (isDone) doneOnRouteCount++;
+    });
+
+    byUser[u].binsDone += doneOnRouteCount;
   }
   const discOpen = state.discrepancies.filter(d=>d.planId===pid && d.status!=='Closed').length;
 
   return {plannedBins:bins.length, binsDone, progressPct, scanEntries, openExceptions:discOpen, frozenBins:frozen, routesTotal:routes.length, routesCounted, byUser};
 }
 function barRow(name, val, max){
-  const pct = max? Math.min(100, Math.round(val*100/max)):0;
+  const pct = max>0? Math.min(100, Math.round(val*100/max)):0;
   return `<div class="bar">
     <div style="min-width:120px">${esc(name)}</div>
     <div class="track"><i style="width:${pct}%"></i></div>
@@ -792,7 +879,7 @@ function renderReports(){
   view.innerHTML = `
     <div class="grid">
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 0">
           <h3><span class="ico-inline" data-ic="report"></span> 5) Dashboard (Real‑time)</h3>
           <div>
             <button class="btn bad" onclick="clearAllData()"><span class="ico-inline" data-ic="alert"></span> Clear All Data</button>
@@ -829,6 +916,7 @@ function renderReports(){
     </div>`;
   paintIcons(view); refreshActivePlanBadge();
 }
+// Auto refresh reports every 2 seconds if on the reports tab
 setInterval(()=>{ if((location.hash||'#reports')==='#reports'){ if(stateReady) renderReports(); } }, 2000);
 
 // ===== EXPORTS / CLEAR =====
@@ -841,19 +929,23 @@ function exportCSV(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = `physical_count_scans_${pid}.csv`; a.click();
   URL.revokeObjectURL(url);
+  showMessage('Success', 'Scan data exported successfully as CSV.');
 }
 function clearAllData(){
-  if(!confirm('Clear all data for Physical Count? This cannot be undone.')) return;
-  const keepUser = localStorage.getItem('pc_user');
-  Object.keys(localStorage).filter(k=>k.startsWith('pc_')).forEach(k=>localStorage.removeItem(k));
-  if(keepUser) localStorage.setItem('pc_user', keepUser);
-  state.plans = []; state.routes = []; state.bins = []; state.assignments = [];
-  state.scans = []; state.discrepancies = []; state.freezes = []; state.cfgByPlan = {};
-  state.currentPlanId = null; persist();
-  location.hash = '#plan'; render(); refreshActivePlanBadge();
+  // Using custom simple modal/message box instead of confirm()
+  showConfirm('Clear All Data', 'Clear all data for Physical Count? This cannot be undone.', ()=>{
+    const keepUser = localStorage.getItem('pc_user');
+    Object.keys(localStorage).filter(k=>k.startsWith('pc_')).forEach(k=>localStorage.removeItem(k));
+    if(keepUser) localStorage.setItem('pc_user', keepUser);
+    state.plans = []; state.routes = []; state.bins = []; state.assignments = [];
+    state.scans = []; state.discrepancies = []; state.freezes = []; state.cfgByPlan = {};
+    state.currentPlanId = null; persist();
+    location.hash = '#plan'; render(); refreshActivePlanBadge();
+    showMessage('Success', 'All data has been cleared.');
+  });
 }
 
-// ===== SHARED =====
+// ===== SHARED UI UTILITIES (No alerts/confirms/prompts) =====
 function toggleSheet(id, on){ const el=document.getElementById(id); if(el) el.style.display = on?'flex':'none'; }
 function empty(text){
   return `<div class="card" style="text-align:center;padding:12px">
@@ -864,8 +956,60 @@ function empty(text){
 function esc(s){return (s??'').toString().replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
 function fmtWhen(t){const d=new Date(t||Date.now()); return d.toLocaleString();}
 
+// Custom Modal/Message Box Implementation (to replace alert/confirm/prompt)
+document.body.insertAdjacentHTML('beforeend', `
+  <div class="modal" id="customModal">
+    <div class="dialog" style="max-width:400px;border-radius:14px">
+      <div class="sheet" style="padding:16px;border:none;border-radius:14px">
+        <h3 id="modalTitle" style="margin-top:0"></h3>
+        <p id="modalBody"></p>
+        <div id="modalInput" style="margin-bottom:10px;display:none"><input id="modalInputVal" type="text" style="width:100%"/></div>
+        <div id="modalButtons" class="row" style="justify-content:flex-end"></div>
+      </div>
+    </div>
+  </div>
+`);
+const modal = document.getElementById('customModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+const modalInput = document.getElementById('modalInput');
+const modalInputVal = document.getElementById('modalInputVal');
+const modalButtons = document.getElementById('modalButtons');
+
+function showMessage(title, message, type='info', callback=null){
+  modalTitle.textContent = title;
+  modalBody.textContent = message;
+  modalInput.style.display = 'none';
+  modalButtons.innerHTML = `<button class="btn primary" onclick="closeModal(); ${callback?`(${callback})()`:''}">OK</button>`;
+  modal.style.display = 'flex';
+}
+
+function showConfirm(title, message, onConfirm, onCancel=null){
+  modalTitle.textContent = title;
+  modalBody.textContent = message;
+  modalInput.style.display = 'none';
+  modalButtons.innerHTML = `
+    <button class="btn" onclick="closeModal(); ${onCancel?`(${onCancel})()`:''}">Cancel</button>
+    <button class="btn bad" onclick="closeModal(); (${onConfirm})()">Confirm</button>
+  `;
+  modal.style.display = 'flex';
+}
+
+function showPrompt(title, message, defaultValue, onConfirm){
+  modalTitle.textContent = title;
+  modalBody.textContent = message;
+  modalInput.style.display = 'block';
+  modalInputVal.value = defaultValue;
+  modalButtons.innerHTML = `
+    <button class="btn" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="closeModal(); (${onConfirm})(modalInputVal.value)">Submit</button>
+  `;
+  modal.style.display = 'flex';
+}
+function closeModal(){ modal.style.display = 'none'; }
+
+
 // ===== BOOT =====
-function paintIcons(scope=document){ scope.querySelectorAll('[data-ic]').forEach(el=>{ el.innerHTML = ICONS[el.getAttribute('data-ic')]||''; }); }
 paintIcons(document);
 (function boot(){
   if(!currentUser){ renderLogin(); } else { showMain(); }
