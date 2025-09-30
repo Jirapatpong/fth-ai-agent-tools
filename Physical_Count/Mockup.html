@@ -18,7 +18,8 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  /* Ensure full mobile height */
+  body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial; min-height: 100dvh;}
   header{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
   .brand{width:14px;height:14px;border-radius:4px;background:var(--brand)}
   h1{margin:0;font-size:var(--fs-lg)}
@@ -30,15 +31,23 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow)}
   .card h3{margin:0 0 6px 0;font-size:var(--fs-lg);display:flex;align-items:center;gap:6px}
   .muted{color:var(--muted)}
+  /* General input/button styling for mobile usability */
   input,select,textarea,button{font-size:var(--fs-md)}
-  input,select,textarea{width:100%;background:#fff;border:1px solid #dbe3ea;color:var(--text);padding:8px 10px;border-radius:10px;outline:none;min-height:36px}
+  input,select,textarea{width:100%;background:#fff;border:1px solid #dbe3ea;color:var(--text);padding:12px 10px;border-radius:10px;outline:none;min-height:48px; /* Increased height for better touch target */}
   input:focus,select:focus,textarea:focus{border-color:#93c5fd;box-shadow:0 0 0 2px rgba(147,197,253,.25)}
   label{font-size:var(--fs-sm);color:#334155;display:block;margin-bottom:4px}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;padding:8px 12px;border-radius:10px;cursor:pointer;min-height:36px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:#fff;border:1px solid #cbd5e1;color:#0f172a;padding:12px 16px; /* Increased padding for better touch target */
+       border-radius:10px;cursor:pointer;min-height:48px; /* Min height for touch target */}
   .btn.primary{border-color:var(--brand);background:#eff6ff;color:#1d4ed8}
   .btn.ok{border-color:#86efac;color:#14532d;background:#ecfdf5}
   .btn.warn{border-color:#facc15;color:#713f12;background:#fffbeb}
   .btn.bad{border-color:#fecaca;color:#7f1d1d;background:#fef2f2}
+  /* Login specific buttons for mobile */
+  .login-btn-group .btn{
+      flex: 1; /* Make buttons grow to fill space */
+      font-size: var(--fs-lg); /* Larger font for primary actions */
+      font-weight: 600;
+  }
   table{width:100%;border-collapse:separate;border-spacing:0 6px}
   th,td{text-align:left;padding:8px 10px}
   thead th{font-size:var(--fs-sm);color:#475569}
@@ -47,9 +56,16 @@
   tbody tr td:last-child{border-top-right-radius:8px;border-bottom-right-radius:8px}
   @media (max-width:760px){
     table thead{display:none}
-    table tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px}
+    table tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px; margin-bottom: 10px;} /* Added margin for separation */
     table tbody td{padding:6px 6px}
     table tbody td::before{content:attr(data-label);display:block;color:#64748b;font-size:var(--fs-xs);margin-bottom:2px}
+    .row{flex-direction: column; gap: 8px;} /* Stack elements on mobile */
+    .row > * { min-width: 100%; }
+    .card{padding: 12px;}
+    /* Ensure action buttons in tables are full width */
+    table .btn{width: 100%;}
+    /* Login card alignment */
+    .login-card{ padding: 20px;}
   }
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
     padding:4px calc(8px + var(--inset)); display:flex;gap:4px;justify-content:space-around}
@@ -79,7 +95,11 @@
   .ico-inline{width:var(--icon-inline);height:var(--icon-inline);color:#2563eb}
   .login-wrap{min-height:calc(100dvh - 60px);display:flex;align-items:center;justify-content:center;padding:16px}
   .login-card{width:100%;max-width:460px}
+  /* Style for camera preview on scan sheet */
+  #cam{width:100%;max-height:200px;border-radius:10px;background:#000; display: block; margin-top: 8px;}
 </style>
+<!-- Load QuaggaJS for barcode detection simulation -->
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
 </head>
 <body>
 <header>
@@ -98,7 +118,7 @@
 <div class="tabs" id="tabs" style="display:none">
   <button class="tab-btn active" data-view="plan"><div class="ico" data-ic="plan"></div><span>Plan</span></button>
   <button class="tab-btn" data-view="assign"><div class="ico" data-ic="users"></div><span>Assign</span></button>
-  <button class="tab-btn" data-view="execute"><div class="ico" data-ic="scan"></div><span>Execute</span></button>
+  <button class="tab-btn" data-view="execute"><div class="ico" data-ic="scan"></div><span>Count</span></button>
   <button class="tab-btn" data-view="validate"><div class="ico" data-ic="shield"></div><span>Validate</span></button>
   <button class="tab-btn" data-view="reports"><div class="ico" data-ic="report"></div><span>Reports</span></button>
 </div>
@@ -106,8 +126,25 @@
 <div class="modal" id="sheetScan">
   <div class="dialog">
     <div class="sheet">
-      <button class="close" onclick="toggleSheet('sheetScan',false)">✕</button>
+      <button class="close" onclick="toggleSheet('sheetScan',false); stopCam()">✕</button>
       <h3><span class="ico-inline" data-ic="scan"></span> Scan & Count</h3>
+      <!-- Camera/Scanner Pane moved to the top of the sheet -->
+      <div class="card" style="flex:1;min-width:220px; margin-bottom: 10px;">
+        <label>Scanner View</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+          <button class="btn primary" onclick="startCam()"><span class="ico-inline" data-ic='scan'></span> Open Scanner</button>
+          <button class="btn" onclick="stopCam()"><span class="ico-inline" data-ic='alert'></span> Close Scanner</button>
+          <button class="btn ok" onclick="mockScanSKU()"><span class="ico-inline" data-ic='arrow'></span> Mock Scan</button>
+        </div>
+        <div id="scanner-container" style="width:100%; height: 200px; background: #222; border-radius: 8px; overflow: hidden; position: relative;">
+          <!-- Video element is nested inside a container for Quagga -->
+          <video id="cam" autoplay playsinline style="width:100%; height: 100%; object-fit: cover;"></video>
+          <!-- Quagga requires the canvas to render detection -->
+          <canvas class="drawingBuffer" style="position: absolute; top: 0; left: 0;"></canvas>
+        </div>
+      </div>
+      <!-- End Camera/Scanner Pane -->
+
       <div class="row">
         <div class="card" style="flex:1;min-width:220px">
           <label>Route Stop / Bin</label>
@@ -120,20 +157,9 @@
         <div class="card" style="flex:1;min-width:120px"><label>Blind</label><select id="sc-blind"><option value="true">On</option><option value="false">Off</option></select></div>
       </div>
       <div class="row"><div class="card" style="flex:1"><label>Notes</label><input id="sc-note" placeholder="Optional note"/></div></div>
-      <div class="row">
-        <button class="btn ok" onclick="submitScan()"><span class="ico-inline" data-ic="tick"></span> Submit</button>
-        <button class="btn" onclick="markDiscrepancy()"><span class="ico-inline" data-ic="alert"></span> Mark Discrepancy</button>
-      </div>
-      <div class="row">
-        <div class="card" style="flex:1;min-width:220px">
-          <label>Camera</label>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-            <button class="btn" onclick="startCam()"><span class="ico-inline" data-ic='scan'></span> Open Camera</button>
-            <button class="btn" onclick="stopCam()"><span class="ico-inline" data-ic='alert'></span> Close</button>
-            <button class="btn primary" onclick="mockScanSKU()"><span class="ico-inline" data-ic='tick'></span> Mock Scan → SKU</button>
-          </div>
-          <video id="cam" autoplay playsinline style="width:100%;max-height:200px;border-radius:10px;background:#000"></video>
-        </div>
+      <div class="row" style="justify-content: center;">
+        <button class="btn ok" onclick="submitScan()" style="flex-grow: 1;"><span class="ico-inline" data-ic="tick"></span> Submit Count</button>
+        <!-- Removed Mark Discrepancy button -->
       </div>
     </div>
   </div>
@@ -226,16 +252,16 @@ function renderLogin(){
             <label>Password</label>
             <input id="lg-pass" type="password" autocomplete="current-password" placeholder="••••••••"/>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px; margin-bottom: 16px;">
             <input id="lg-remember" type="checkbox" style="width:16px;height:16px" checked>
             <label for="lg-remember" style="margin:0">Remember me</label>
           </div>
         </div>
-        <div class="row" style="justify-content:space-between">
+        <div class="row login-btn-group" style="justify-content:space-between">
           <button class="btn" onclick="fillDemo()">Use demo</button>
           <button class="btn primary" onclick="login()"><span class="ico-inline" data-ic="tick"></span> Login</button>
         </div>
-        <div class="muted" style="font-size:var(--fs-sm)">Demo login only. Any user/password accepted.</div>
+        <div class="muted" style="font-size:var(--fs-sm); margin-top: 10px;">Demo login only. Any user/password accepted.</div>
       </div>
     </div>`;
   paintIcons(lv); showAppChrome(false);
@@ -250,6 +276,7 @@ function login(){
   showMain();
 }
 function logout(){
+  stopCam(); // Ensure scanner stops on logout
   currentUser = null;
   try{ localStorage.removeItem('pc_user'); }catch(_){}
   renderLogin(); refreshActivePlanBadge();
@@ -262,10 +289,103 @@ function showMain(){
   location.hash = '#plan'; render();
 }
 
+// ===== BARCODE SCANNING (QuaggaJS) =====
+let camStream = null;
+let quaggaRunning = false;
+
+function startCam(){
+  if (quaggaRunning) {
+    showMessage('Alert', 'Scanner is already running.');
+    return;
+  }
+  
+  const video = document.getElementById('cam');
+  // Hide the video element to prevent display issues before stream starts
+  video.style.display = 'none';
+
+  Quagga.init({
+    inputStream: {
+      name: "Live",
+      type: "LiveStream",
+      target: document.querySelector('#scanner-container'),
+      constraints: {
+        facingMode: "environment" // Use rear camera
+      }
+    },
+    decoder: {
+      readers: [
+        "ean_reader", 
+        "code_128_reader", 
+        "code_39_reader", 
+        "ean_8_reader"
+      ]
+    },
+    locator: {
+      patchSize: "medium",
+      halfSample: true
+    }
+  }, function(err) {
+    if (err) {
+      showMessage('Camera Error', 'Failed to start camera: ' + err.message);
+      console.error(err);
+      video.style.display = 'block'; // Show video fallback or black screen
+      return;
+    }
+    Quagga.start();
+    quaggaRunning = true;
+    // Get the stream reference after successful start
+    if (video.srcObject) {
+      camStream = video.srcObject;
+    } else {
+        // Fallback to manually getting the stream if Quagga doesn't set it (less reliable)
+        navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+          .then(stream => camStream = stream)
+          .catch(e => console.error("Could not get stream reference:", e));
+    }
+    video.style.display = 'block'; // Show video element only when stream is ready
+    showMessage('Scanner Status', 'Scanner active. Point at a barcode.');
+  });
+
+  Quagga.onDetected(function(result) {
+    const code = result.codeResult.code;
+    const skuInput = document.getElementById('sc-sku');
+    if (skuInput && code) {
+      skuInput.value = code;
+      // Optionally focus on the Qty field after successful scan
+      const qtyInput = document.getElementById('sc-qty');
+      if (qtyInput) qtyInput.focus();
+      // Stop scanning after a successful read to save battery and prevent multiple inputs
+      // stopCam();
+      // showMessage('Scan Success', 'Barcode detected: ' + code);
+    }
+  });
+}
+
+function stopCam(){
+  if (quaggaRunning) {
+    Quagga.stop();
+    quaggaRunning = false;
+  }
+  // This part handles manually stopping the camera stream if Quagga didn't handle it
+  if(camStream){ 
+    camStream.getTracks().forEach(t=>t.stop()); 
+    camStream = null; 
+  }
+  const v = document.getElementById('cam'); 
+  if(v){ v.srcObject = null; v.style.display = 'none'; }
+}
+
+function mockScanSKU(){
+  const sku = 'EAN-' + Math.floor(Math.random()*900000000000+100000000000);
+  const el = document.getElementById('sc-sku'); if(el) el.value = sku;
+}
+
 // ===== ROUTER & HELPERS =====
 const view = document.getElementById('view');
 document.querySelectorAll('.tab-btn').forEach(b=>{
   b.onclick = ()=>{
+    // Stop camera/scanner when switching tabs
+    stopCam();
     document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     location.hash = b.dataset.view;
@@ -327,6 +447,9 @@ function selectPlan(pid){ state.currentPlanId = pid||null; persist(); render(); 
 
 function renderPlan(){
   const p = currentPlan();
+  // Check if a plan exists to decide whether to show the Route Generation section
+  const hasPlan = !!p;
+
   view.innerHTML = `
     <div class="grid">
       <div class="card">
@@ -349,7 +472,7 @@ function renderPlan(){
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" ${hasPlan ? '' : 'style="display:none"'}>
         <h3><span class="ico-inline" data-ic="map"></span> 1.1) System‑Guided Route (sub of Plan)</h3>
         <div class="row">
           <div style="flex:1;min-width:150px"><label>Section</label><input id="sg-section" placeholder="A01"/></div>
@@ -359,7 +482,7 @@ function renderPlan(){
         ${renderRoutesTable()}
       </div>
 
-      <div class="card">
+      <div class="card" ${hasPlan ? '' : 'style="display:none"'}>
         <h3><span class="ico-inline" data-ic="map"></span> 1.2) Manual Route (sub of Plan)</h3>
         <div class="row">
           <div style="flex:1;min-width:140px"><label>Section</label><input id="mr-section" placeholder="A02"/></div>
@@ -368,7 +491,7 @@ function renderPlan(){
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" ${hasPlan ? '' : 'style="display:none"'}>
         <h3><span class="ico-inline" data-ic="boxes"></span> 1.3) Bin Targets (Expected SKUs)</h3>
         ${renderBinTargets()}
       </div>
@@ -528,6 +651,7 @@ function renderAssign(){
       <div class="card">
         <h3><span class="ico-inline" data-ic="users"></span> 2) Allocation Assignment</h3>
         ${planSelector()}
+        <!-- Manual entry for assignment - Removed mock data option here -->
         <div class="row">
           <div style="flex:1;min-width:160px">
             <label>Route</label>
@@ -587,23 +711,7 @@ function editAssign(routeKey, oldUser){
   });
 }
 
-// ===== EXECUTE VIEW FUNCTIONS =====
-let camStream = null;
-async function startCam(){
-  try{
-    stopCam();
-    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    const v = document.getElementById('cam'); if(v){ v.srcObject = camStream; }
-  }catch(e){ showMessage('Camera Error', 'Camera not available: '+e.message); }
-}
-function stopCam(){
-  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
-  const v = document.getElementById('cam'); if(v){ v.srcObject = null; }
-}
-function mockScanSKU(){
-  const sku = 'EAN-' + Math.floor(Math.random()*900000000000+100000000000);
-  const el = document.getElementById('sc-sku'); if(el) el.value = sku;
-}
+// ===== EXECUTE VIEW FUNCTIONS (Renamed to Count) =====
 function renderExecute(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
@@ -611,7 +719,7 @@ function renderExecute(){
   view.innerHTML = `
     <div class="grid">
       <div class="card">
-        <h3><span class="ico-inline" data-ic="scan"></span> 3) Execution (Track / Scan)</h3>
+        <h3><span class="ico-inline" data-ic="scan"></span> 3) Count (Track / Scan)</h3>
         <div class="row">
           <div style="flex:1;min-width:200px">
             <label>Bin</label>
@@ -691,19 +799,7 @@ function submitScan(){
   state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
   persist(); toggleSheet('sheetScan',false); render();
 }
-function markDiscrepancy(){
-  if(!ensurePlan()) return;
-  const pid = state.currentPlanId;
-  const rkbin = document.getElementById('sc-bin').value;
-  if(!rkbin){ showMessage('Error', 'Select a bin'); return; }
-  const [rk, binId] = rkbin.split('::');
-  const sku = document.getElementById('sc-sku').value.trim();
-  const qty = +document.getElementById('sc-qty').value||0;
-  const id = 'D-' + Math.floor(Math.random()*9000+1000);
-  state.discrepancies.push({planId:pid, id, type:'QtyMismatch', binId, sku, expected:qty+2, counted:qty, status:'Open'});
-  persist(); toggleSheet('sheetScan',false); render();
-  showMessage('Success', 'Discrepancy marked. Review in Reports/Validation tab.');
-}
+// Removed markDiscrepancy function as requested.
 
 // ===== VALIDATE VIEW FUNCTIONS =====
 function renderValidate(){
@@ -893,7 +989,11 @@ function renderReports(){
           <div class="kpi"><div class="lbl">Completed Bins</div><div class="val">${d.binsDone}</div></div>
           <div class="kpi"><div class="lbl">Count Entries</div><div class="val">${d.scanEntries}</div></div>
           <div class="kpi"><div class="lbl">Routes Counted</div><div class="val">${d.routesCounted}/${d.routesTotal}</div></div>
-          <div class="kpi"><div class="lbl">Open Exceptions</div><div class="val">${d.openExceptions}</div></div>
+          <!-- Discrepancy Rate KPI (Simulated by Open Exceptions / Scan Entries) -->
+          <div class="kpi">
+            <div class="lbl">Discrepancy Rate</div>
+            <div class="val">${d.scanEntries > 0 ? ((d.openExceptions / d.scanEntries) * 100).toFixed(1) : 0}%</div>
+          </div>
           <div class="kpi"><div class="lbl">Frozen Bins</div><div class="val">${d.frozenBins}</div></div>
         </div>
       </div>
