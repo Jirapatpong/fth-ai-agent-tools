@@ -66,6 +66,15 @@
     table .btn{width: 100%;}
     /* Login card alignment */
     .login-card{ padding: 20px;}
+    /* Count Tab Layout Fixes */
+    .execute-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .execute-row > div {
+        flex: 1 1 100%;
+        min-width: unset;
+    }
   }
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
     padding:4px calc(8px + var(--inset)); display:flex;gap:4px;justify-content:space-around}
@@ -77,7 +86,8 @@
   .tab-btn span{font-size:var(--fs-xs)}
   .spacer{height:72px}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.28);display:none;align-items:flex-end;justify-content:center;z-index:50}
-  .dialog{background:#fff;border-top-left-radius:14px;border-top-right-radius:14px;width:100%;max-width:680px;box-shadow:0 -10px 24px rgba(2,6,23,.16)}
+  /* Smaller dialog for compact mode */
+  .dialog{background:#fff;border-top-left-radius:14px;border-top-right-radius:14px;width:100%;max-width:480px;box-shadow:0 -10px 24px rgba(2,6,23,.16)}
   .sheet{padding:12px 12px calc(12px + var(--inset)) 12px;border-top:1px solid var(--line)}
   .close{position:absolute;right:10px;top:8px;background:#fff;border:1px solid #cbd5e1;color:#334155;border-radius:8px;padding:4px 8px;cursor:pointer}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
@@ -127,16 +137,17 @@
   <div class="dialog">
     <div class="sheet">
       <button class="close" onclick="toggleSheet('sheetScan',false); stopCam()">✕</button>
-      <h3><span class="ico-inline" data-ic="scan"></span> Scan & Count</h3>
-      <!-- Camera/Scanner Pane moved to the top of the sheet -->
+      <h3>Scan & Count</h3>
+      
+      <!-- Camera/Scanner Pane moved to the top of the sheet, more compact -->
       <div class="card" style="flex:1;min-width:220px; margin-bottom: 10px;">
         <label>Scanner View</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
           <button class="btn primary" onclick="startCam()"><span class="ico-inline" data-ic='scan'></span> Open Scanner</button>
-          <button class="btn" onclick="stopCam()"><span class="ico-inline" data-ic='alert'></span> Close Scanner</button>
+          <button class="btn" onclick="stopCam()"><span class="ico-inline" data-ic='alert'></span> Close</button>
           <button class="btn ok" onclick="mockScanSKU()"><span class="ico-inline" data-ic='arrow'></span> Mock Scan</button>
         </div>
-        <div id="scanner-container" style="width:100%; height: 200px; background: #222; border-radius: 8px; overflow: hidden; position: relative;">
+        <div id="scanner-container" style="width:100%; height: 120px; background: #222; border-radius: 8px; overflow: hidden; position: relative;">
           <!-- Video element is nested inside a container for Quagga -->
           <video id="cam" autoplay playsinline style="width:100%; height: 100%; object-fit: cover;"></video>
           <!-- Quagga requires the canvas to render detection -->
@@ -157,9 +168,8 @@
         <div class="card" style="flex:1;min-width:120px"><label>Blind</label><select id="sc-blind"><option value="true">On</option><option value="false">Off</option></select></div>
       </div>
       <div class="row"><div class="card" style="flex:1"><label>Notes</label><input id="sc-note" placeholder="Optional note"/></div></div>
-      <div class="row" style="justify-content: center;">
+      <div class="row" style="justify-content: center; margin-top: 10px;">
         <button class="btn ok" onclick="submitScan()" style="flex-grow: 1;"><span class="ico-inline" data-ic="tick"></span> Submit Count</button>
-        <!-- Removed Mark Discrepancy button -->
       </div>
     </div>
   </div>
@@ -181,7 +191,7 @@ try{
   state.assignments = JSON.parse(localStorage.getItem('pc_assignments')||'[]') || [];
   state.scans = JSON.parse(localStorage.getItem('pc_scans')||'[]') || [];
   state.discrepancies = JSON.parse(localStorage.getItem('pc_disc')||'[]') || [];
-  state.freezes = JSON.parse(localStorage.getItem('pc_freezes')||'[]') || [];
+  state.freezes = JSON.parse(localStorage.getItem('pc_freezes')||'[]') || {};
   state.cfgByPlan = JSON.parse(localStorage.getItem('pc_cfgByPlan')||'{}') || {};
   state.currentPlanId = localStorage.getItem('pc_currentPlanId') || null;
   stateReady = true;
@@ -273,6 +283,9 @@ function login(){
   if(!u){ showMessage('Error', 'Enter a username'); return; }
   currentUser = u;
   try{ if(document.getElementById('lg-remember')?.checked){ localStorage.setItem('pc_user', u); } }catch(_){}
+  
+  // 2. Once login always clear data
+  clearAllData(true); // Pass true to keep the current user session
   showMain();
 }
 function logout(){
@@ -343,7 +356,7 @@ function startCam(){
           .catch(e => console.error("Could not get stream reference:", e));
     }
     video.style.display = 'block'; // Show video element only when stream is ready
-    showMessage('Scanner Status', 'Scanner active. Point at a barcode.');
+    // showMessage('Scanner Status', 'Scanner active. Point at a barcode.'); // Removed intrusive message
   });
 
   Quagga.onDetected(function(result) {
@@ -354,9 +367,6 @@ function startCam(){
       // Optionally focus on the Qty field after successful scan
       const qtyInput = document.getElementById('sc-qty');
       if (qtyInput) qtyInput.focus();
-      // Stop scanning after a successful read to save battery and prevent multiple inputs
-      // stopCam();
-      // showMessage('Scan Success', 'Barcode detected: ' + code);
     }
   });
 }
@@ -378,6 +388,8 @@ function stopCam(){
 function mockScanSKU(){
   const sku = 'EAN-' + Math.floor(Math.random()*900000000000+100000000000);
   const el = document.getElementById('sc-sku'); if(el) el.value = sku;
+  const qtyInput = document.getElementById('sc-qty');
+  if (qtyInput) qtyInput.focus();
 }
 
 // ===== ROUTER & HELPERS =====
@@ -508,9 +520,19 @@ function renderRoutesTable(){
       <td data-label="Section">${esc(r.section)}</td>
       <td data-label="Type"><span class="pill">${r.type}</span></td>
       <td data-label="Stops">${esc(r.stops.join(', '))}</td>
-      <td data-label=""><button class="btn bad" onclick="delRoute('${keyOf(r)}')"><span class="ico-inline" data-ic="alert"></span> Delete</button></td>
+      <td data-label="Actions"><button class="btn bad" onclick="delRoute('${keyOf(r)}')"><span class="ico-inline" data-ic="alert"></span> Delete</button></td>
     </tr>`).join('')}</tbody></table>`;
 }
+
+// Bin Targets: use dropdown config values (Point 4)
+const EXPECTED_OPTIONS = [0, 1, 2, 5, 10];
+function getExpectedSkusSelect(index, currentValue) {
+    let options = EXPECTED_OPTIONS.map(val => 
+        `<option value="${val}" ${val === currentValue ? 'selected' : ''}>${val}</option>`
+    ).join('');
+    return `<select onchange="setBinExpected(${index}, this.value)">${options}</select>`;
+}
+
 function renderBinTargets(){
   if(!state.currentPlanId) return '<div class="muted">Create routes to generate bins.</div>';
   const pid = state.currentPlanId;
@@ -525,7 +547,7 @@ function renderBinTargets(){
     const done = expected>0 ? skuCnt>=expected : skuCnt>0;
     return `<tr>
       <td data-label="Bin">${esc(b.section)} • ${esc(b.binId)}</td>
-      <td data-label="Expected SKUs"><input type="number" min="0" value="${expected}" onchange="setBinExpected(${i}, this.value)"/></td>
+      <td data-label="Expected SKUs">${getExpectedSkusSelect(i, expected)}</td>
       <td data-label="Counted SKUs">${skuCnt}</td>
       <td data-label="Qty Sum">${qtySum}</td>
       <td data-label="Status"><span class="pill" style="border-color:${done?'#86efac':'#cbd5e1'};background:${done?'#ecfdf5':'#fff'}">${done?'Completed':'Pending'}</span></td>
@@ -576,6 +598,11 @@ function seedDemo(){
   if(!p){ p = {id, site, asof, repeat, scope}; state.plans.push(p); }
   state.currentPlanId = id;
 
+  // 3. After generate action plan guide route no need to auto gen. 
+  // Only insert Plan data, skip routes/assignments/scans generation unless explicitly adding a button for it later.
+  
+  // Example for manually seeding demo routes/bins (if user chose to do this manually later)
+  /*
   const sys = {planId:id, section:'A01', type:'system', stops:['A01-01','A01-02','A01-03','A01-04']};
   const man = {planId:id, section:'B02', type:'manual', stops:['B02-01','B02-02','B02-03']};
   const existingKeys = new Set(state.routes.map(r=>keyOf(r)));
@@ -584,15 +611,16 @@ function seedDemo(){
   const rkSys = keyOf(sys), rkMan = keyOf(man);
   if(!state.assignments.some(a=>a.planId===id && a.routeKey===rkSys)) state.assignments.push({planId:id, routeKey:rkSys, user:'alice'});
   if(!state.assignments.some(a=>a.planId===id && a.routeKey===rkMan)) state.assignments.push({planId:id, routeKey:rkMan, user:'bob'});
-
+  
   const pushScan = (rk, bin, sku, qty)=> state.scans.push({planId:id, routeKey:rk, binId:bin, when:Date.now(), sku, qty, blind:true, note:''});
   if(state.scans.filter(s=>s.planId===id).length<3){
     pushScan(rkSys,'A01-01','EAN-1234567890123',1);
     pushScan(rkSys,'A01-02','EAN-2234567890123',3);
     pushScan(rkMan,'B02-01','EAN-3234567890123',2);
   }
+  */
 
-  persist(); showMessage('Success', 'Inserted mock data for Action Plan DEMO-PLAN-001'); render(); refreshActivePlanBadge();
+  persist(); showMessage('Success', 'Inserted mock Plan data for DEMO-PLAN-001. Now manually generate Routes.'); render(); refreshActivePlanBadge();
 }
 function systemGuidedRoute(){
   if(!state.currentPlanId) return showMessage('Error', 'Save a Plan first.');
@@ -651,7 +679,6 @@ function renderAssign(){
       <div class="card">
         <h3><span class="ico-inline" data-ic="users"></span> 2) Allocation Assignment</h3>
         ${planSelector()}
-        <!-- Manual entry for assignment - Removed mock data option here -->
         <div class="row">
           <div style="flex:1;min-width:160px">
             <label>Route</label>
@@ -659,7 +686,8 @@ function renderAssign(){
               ${routes.length? routes.map(r=>`<option value="${keyOf(r)}">${r.planId} • ${r.section} — ${r.type} — (${r.stops.length} bins)</option>`).join('') : '<option disabled>No routes yet</option>'}
             </select>
           </div>
-          <div style="flex:1;min-width:140px"><label>User</label><input id="as-user" placeholder="alice"/></div>
+          <!-- 5. Assign tab no need to auto gen user name. -->
+          <div style="flex:1;min-width:140px"><label>User</label><input id="as-user" placeholder="User ID or Name"/></div>
           <div style="align-self:end"><button class="btn ok" onclick="addAssign()"><span class="ico-inline" data-ic="tick"></span> Assign</button></div>
         </div>
         ${tableAssign(state.assignments.filter(a=>a.planId===pid), pid)}
@@ -720,20 +748,22 @@ function renderExecute(){
     <div class="grid">
       <div class="card">
         <h3><span class="ico-inline" data-ic="scan"></span> 3) Count (Track / Scan)</h3>
-        <div class="row">
-          <div style="flex:1;min-width:200px">
+        <!-- 7. On count tab re design ui again because some area is overlay -->
+        <div class="row execute-row">
+          <div style="flex:1;">
             <label>Bin</label>
             <select id="exe-bin">${
               allBins.length? allBins.map(b=>{
                 const frozen = state.freezes.some(f=>f.planId===pid && f.binId===b.binId);
-                const routeInfo = state.routes.find(r => keyOf(r) === b.routeKey);
                 const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
                 const assignedClass = (routeUser === currentUser) ? 'primary' : (routeUser === 'Unassigned' ? '' : 'warn');
                 return `<option ${frozen?'disabled':''} data-user="${esc(routeUser)}" class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)})${frozen?' (Frozen)':''}</option>`;
               }).join('') : '<option disabled>No bins</option>'
             }</select>
           </div>
-          <div style="align-self:end"><button class="btn ok" onclick="openScanSheet()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button></div>
+          <div style="align-self:end;">
+            <button class="btn ok" onclick="openScanSheet()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button>
+          </div>
         </div>
         <div class="muted" id="binStat" style="margin: -4px 0 6px 0"></div>
         <h4>Recent Scans (Last 12)</h4>
@@ -797,7 +827,7 @@ function submitScan(){
   const note = document.getElementById('sc-note').value.trim();
   if(!sku || qty<=0){ showMessage('Error', 'SKU and Qty>0 required'); return; }
   state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
-  persist(); toggleSheet('sheetScan',false); render();
+  persist(); toggleSheet('sheetScan',false); stopCam(); render();
 }
 // Removed markDiscrepancy function as requested.
 
@@ -1031,18 +1061,34 @@ function exportCSV(){
   URL.revokeObjectURL(url);
   showMessage('Success', 'Scan data exported successfully as CSV.');
 }
-function clearAllData(){
-  // Using custom simple modal/message box instead of confirm()
-  showConfirm('Clear All Data', 'Clear all data for Physical Count? This cannot be undone.', ()=>{
-    const keepUser = localStorage.getItem('pc_user');
+function clearAllData(keepUser = false){
+  // If keepUser is true (called from login), we skip the confirmation dialog.
+  if(!keepUser) {
+    showConfirm('Clear All Data', 'Clear all data for Physical Count? This cannot be undone.', ()=>{
+      _performClear(keepUser);
+    });
+  } else {
+    _performClear(keepUser);
+  }
+}
+
+function _performClear(keepUser){
+    const storedUser = localStorage.getItem('pc_user');
     Object.keys(localStorage).filter(k=>k.startsWith('pc_')).forEach(k=>localStorage.removeItem(k));
-    if(keepUser) localStorage.setItem('pc_user', keepUser);
+    if(keepUser && storedUser) localStorage.setItem('pc_user', storedUser);
+
+    // Reset in-memory state
     state.plans = []; state.routes = []; state.bins = []; state.assignments = [];
     state.scans = []; state.discrepancies = []; state.freezes = []; state.cfgByPlan = {};
-    state.currentPlanId = null; persist();
-    location.hash = '#plan'; render(); refreshActivePlanBadge();
-    showMessage('Success', 'All data has been cleared.');
-  });
+    state.currentPlanId = null; 
+    
+    persist();
+    if(!keepUser) {
+      location.hash = '#plan'; 
+      render(); 
+      refreshActivePlanBadge();
+      showMessage('Success', 'All data has been cleared.');
+    }
 }
 
 // ===== SHARED UI UTILITIES (No alerts/confirms/prompts) =====
