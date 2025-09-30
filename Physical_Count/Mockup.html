@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Physical Count Web App – Mobile‑First Mock</title>
+<style>
+  :root{
+    --bg:#f7fafc; --panel:#ffffff; --muted:#64748b; --text:#0f172a;
+    --brand:#2563eb; --brand-weak:#dbeafe; --ok:#16a34a; --warn:#f59e0b; --bad:#dc2626; --info:#0891b2;
+    --line:#e2e8f0; --soft:#f1f5f9; --shadow:0 1px 3px rgba(15,23,42,.08);
+    --radius:14px; --inset: env(safe-area-inset-bottom, 0);
+    --fs-xs: clamp(12px, 1.5vw, 13px);
+    --fs-sm: clamp(13px, 1.7vw, 14px);
+    --fs-md: clamp(14px, 2vw, 16px);
+    --fs-lg: clamp(16px, 2.5vw, 18px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.45 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  /* Header */
+  header{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;padding:12px 16px;
+    background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+  .logo{width:16px;height:16px;background:linear-gradient(135deg,#60a5fa,#22d3ee);border-radius:4px}
+  h1{font-size:var(--fs-lg);margin:0}
+  .sub{color:var(--muted);font-size:var(--fs-xs)}
+  /* Layout */
+  .container{max-width:1200px;margin:0 auto;padding:12px}
+  .grid{display:grid;gap:12px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 8px 0;font-size:var(--fs-lg)}
+  .muted{color:var(--muted)}
+  /* Controls */
+  input,select,textarea,button{font-size:var(--fs-md)}
+  input,select,textarea{width:100%;background:#fff;border:1px solid #dbe3ea;color:var(--text);
+    padding:12px 14px;border-radius:12px;outline:none;min-height:44px}
+  input:focus,select:focus,textarea:focus{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(147,197,253,.35)}
+  label{font-size:var(--fs-sm);color:#334155;display:block;margin-bottom:6px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:1px solid #cbd5e1;
+    color:#0f172a;padding:12px 16px;border-radius:12px;cursor:pointer;min-height:44px}
+  .btn.primary{border-color:var(--brand);background:var(--brand-weak);color:#0b3a9b}
+  .btn.ok{border-color:var(--ok);color:#065f46;background:#ecfdf5}
+  .btn.warn{border-color:var(--warn);color:#92400e;background:#fffbeb}
+  .btn.bad{border-color:var(--bad);color:#7f1d1d;background:#fef2f2}
+  .stack{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:var(--fs-sm)}
+  .bar{height:10px;background:#fff;border:1px solid #e2e8f0;border-radius:999px;position:relative;overflow:hidden}
+  .bar>span{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#60a5fa,#22d3ee)}
+  /* Tables -> responsive list */
+  table{width:100%;border-collapse:separate;border-spacing:0 8px}
+  th,td{text-align:left;padding:10px 12px}
+  thead th{font-size:var(--fs-sm);color:#475569}
+  tbody tr{background:#fff;border:1px solid #e5e7eb}
+  tbody tr td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
+  tbody tr td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+  @media (max-width:720px){
+    table thead{display:none}
+    table tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px}
+    table tbody td{padding:6px 8px}
+    table tbody td::before{content:attr(data-label);display:block;color:#64748b;font-size:var(--fs-xs);margin-bottom:2px}
+  }
+  /* Desktop 2-column layout */
+  @media (min-width:920px){
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  }
+  /* Mobile sections stack */
+  @media (max-width:919px){ .kpi{display:grid;grid-template-columns:1fr 1fr;gap:12px} }
+  /* Bottom tab bar */
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
+    padding:6px calc(8px + var(--inset)); display:flex;gap:8px;justify-content:space-around}
+  .tab-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;color:#475569;
+    padding:8px;border-radius:10px;min-height:48px}
+  .tab-btn.active{background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe}
+  .tab-btn span{font-size:var(--fs-xs)}
+  .spacer{height:72px} /* space for tabs */
+  /* FAB */
+  .fab{position:fixed;right:16px;bottom:86px;z-index:45;background:#2563eb;color:#fff;border:0;border-radius:999px;
+    min-width:56px;min-height:56px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(2,6,23,.25);cursor:pointer}
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:flex-end;justify-content:center;z-index:50}
+  .dialog{background:#fff;border-top-left-radius:20px;border-top-right-radius:20px;width:100%;max-width:720px;box-shadow:0 -10px 30px rgba(2,6,23,.18)}
+  .sheet{padding:16px 16px calc(16px + var(--inset)) 16px;border-top:1px solid var(--line)}
+  .sheet h3{margin:0 0 8px 0}
+  .sheet .row{gap:10px}
+  .close{position:absolute;right:14px;top:8px;background:#fff;border:1px solid #cbd5e1;color:#334155;border-radius:10px;padding:6px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"></div>
+  <div>
+    <h1>Physical Count</h1>
+    <div class="sub">Mobile‑first • SAP integration mock • Pre‑seeded</div>
+  </div>
+</header>
+
+<div class="container" id="view"></div>
+<div class="spacer"></div>
+
+<!-- Bottom Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" data-view="dashboard">🏠<span>Dashboard</span></button>
+  <button class="tab-btn" data-view="count">📷<span>Count</span></button>
+  <button class="tab-btn" data-view="queue">⚠️<span>Queue</span></button>
+  <button class="tab-btn" data-view="plan">📝<span>Plan</span></button>
+  <button class="tab-btn" data-view="more">⋯<span>More</span></button>
+</div>
+
+<!-- FAB Scan -->
+<button class="fab" id="fabScan" title="Scan & Count">📷</button>
+
+<!-- Sheet Modals -->
+<div class="modal" id="sheetScan">
+  <div class="dialog">
+    <div class="sheet">
+      <button class="close" onclick="toggleSheet('sheetScan',false)">✕</button>
+      <h3>Scan & Count</h3>
+      <div class="row">
+        <div class="card" style="flex:1;min-width:240px">
+          <label>Location / Bin</label>
+          <input id="sc-loc" placeholder="Shelf A01 or Bin A01-05-002"/>
+        </div>
+        <div class="card" style="flex:1;min-width:240px">
+          <label>SKU / EAN / Serial</label>
+          <input id="sc-sku" placeholder="e.g., 8850123456789"/>
+        </div>
+      </div>
+      <div class="row">
+        <div class="card" style="flex:1;min-width:160px">
+          <label>Qty</label>
+          <input id="sc-qty" type="number" value="1"/>
+        </div>
+        <div class="card" style="flex:1;min-width:160px">
+          <label>Blind Count</label>
+          <select id="sc-blind"><option value="true">On</option><option value="false">Off</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="card" style="flex:1;">
+          <label>Notes</label>
+          <input id="sc-note" placeholder="Optional note"/>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn ok" onclick="submitScan()">Submit</button>
+        <button class="btn" onclick="markDiscrepancy()">Mark Discrepancy</button>
+      </div>
+      <div class="smallnote muted">Demo only: stores in localStorage.</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="sheetFreeze">
+  <div class="dialog">
+    <div class="sheet">
+      <button class="close" onclick="toggleSheet('sheetFreeze',false)">✕</button>
+      <h3>Freeze / Unfreeze Bin</h3>
+      <div class="row">
+        <div class="card" style="flex:1;min-width:220px">
+          <label>Bin ID</label>
+          <input id="fz-bin" placeholder="e.g., A01-05-002"/>
+        </div>
+        <div class="card" style="flex:1;min-width:220px">
+          <label>Reason</label>
+          <input id="fz-reason" placeholder="Cycle count in progress"/>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn warn" onclick="freezeBin()">Freeze</button>
+        <button class="btn ok" onclick="unfreezeBin()">Unfreeze</button>
+      </div>
+      <div class="smallnote muted">Demo only.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// State & Seed
+const state = {
+  sessions: JSON.parse(localStorage.getItem('pc_sessions')||'[]'),
+  assignments: JSON.parse(localStorage.getItem('pc_assignments')||'[]'),
+  scans: JSON.parse(localStorage.getItem('pc_scans')||'[]'),
+  discrepancies: JSON.parse(localStorage.getItem('pc_disc')||'[]'),
+  freezes: JSON.parse(localStorage.getItem('pc_freezes')||'[]'),
+  maps: JSON.parse(localStorage.getItem('pc_maps')||'[]'),
+  cfg: JSON.parse(localStorage.getItem('pc_cfg')||'null')
+};
+function persist(){
+  localStorage.setItem('pc_sessions', JSON.stringify(state.sessions));
+  localStorage.setItem('pc_assignments', JSON.stringify(state.assignments));
+  localStorage.setItem('pc_scans', JSON.stringify(state.scans));
+  localStorage.setItem('pc_disc', JSON.stringify(state.discrepancies));
+  localStorage.setItem('pc_freezes', JSON.stringify(state.freezes));
+  localStorage.setItem('pc_maps', JSON.stringify(state.maps));
+  localStorage.setItem('pc_cfg', JSON.stringify(state.cfg));
+}
+(function seed(){
+  const fresh = !state.sessions.length && !state.assignments.length && !state.scans.length &&
+                !state.discrepancies.length && !state.freezes.length && !state.maps.length && !state.cfg;
+  if(!fresh) return;
+  const now = Date.now();
+  state.sessions = [{
+    id:'S-2025-09-001', site:'BKK01', asof:'2025-09-01',
+    scope:{category:'Beverage', brand:'Cola', vendor:'VND001'},
+    repeat:'Quarterly', freezePolicy:'Optional',
+    sections:[{section:'A01', bins:40, people:3, duration:'4h'},
+              {section:'A02', bins:32, people:2, duration:'3h'},
+              {section:'Backroom-FRZ', bins:12, people:1, duration:'2h'}]
+  }];
+  state.assignments = [
+    {user:'alice', section:'A01', bins:20, route:['A01-01','A01-02','A01-03']},
+    {user:'bob', section:'A01', bins:20, route:['A01-04','A01-05','A01-06']},
+    {user:'carl', section:'A02', bins:16, route:['A02-01','A02-02']},
+    {user:'diana', section:'Backroom-FRZ', bins:12, route:['FRZ-01','FRZ-02']},
+  ];
+  state.scans = [
+    {when:now-7200e3, loc:'Shelf A01', sku:'EAN-885000000001', qty:6, blind:true, note:'promo'},
+    {when:now-6800e3, loc:'Shelf A01', sku:'EAN-885000000002', qty:3, blind:true, note:''},
+    {when:now-3600e3, loc:'Bin A01-05-002', sku:'SKU-2002', qty:2, blind:false, note:''},
+    {when:now-1200e3, loc:'Bin A02-01-004', sku:'SKU-3003', qty:9, blind:false, note:'box opened'},
+  ];
+  state.discrepancies = [
+    {id:'D-1001', loc:'Shelf A01', sku:'EAN-885000000001', expected:10, counted:6, status:'Open'},
+    {id:'D-1002', loc:'Bin A01-05-002', sku:'SKU-2002', expected:3, counted:2, status:'Open'},
+  ];
+  state.freezes = [
+    {bin:'A01-05-002', reason:'Cycle count', when:now-3000e3},
+    {bin:'FRZ-01', reason:'Backroom Frozen', when:now-5000e3}
+  ];
+  state.maps = [
+    {shelf:'A01', bin:'A01-05-001'},
+    {shelf:'A01', bin:'A01-05-002'},
+    {shelf:'A02', bin:'A02-01-004'},
+    {shelf:'FRZ', bin:'FRZ-01'}
+  ];
+  state.cfg = {blind:true, twoMatch:true, photo:true};
+  persist();
+})();
+
+// Routing via bottom tabs
+const view = document.getElementById('view');
+document.querySelectorAll('.tab-btn').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    location.hash = b.dataset.view;
+    render();
+  };
+});
+document.getElementById('fabScan').onclick = ()=> toggleSheet('sheetScan', true);
+window.addEventListener('hashchange', render);
+function render(){
+  const route = (location.hash||'#dashboard').replace('#','');
+  switch(route){
+    case 'dashboard': return renderDashboard();
+    case 'count': return renderCount();
+    case 'queue': return renderQueue();
+    case 'plan': return renderPlan();
+    case 'more': return renderMore();
+    default: return renderDashboard();
+  }
+}
+render();
+
+// Views
+function renderDashboard(){
+  const totalBins = state.sessions.flatMap(s=>s.sections||[]).reduce((a,b)=>a+(b.bins||0),0);
+  const counted = state.scans.length;
+  const discOpen = state.discrepancies.filter(d=>d.status!=='Closed').length;
+  const freezes = state.freezes.length;
+  view.innerHTML = `
+    <div class="grid">
+      <div class="kpi">
+        ${kpi('Planned Bins', totalBins)}
+        ${kpi('Counted Entries', counted)}
+        ${kpi('Discrepancies (Open)', discOpen)}
+        ${kpi('Frozen Bins', freezes)}
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h3>Recent Scans</h3>
+          ${listScans(state.scans.slice(-6).reverse())}
+          <div class="row"><button class="btn ok" onclick="toggleSheet('sheetScan',true)">+ Scan & Count</button></div>
+        </div>
+        <div class="card">
+          <h3>Discrepancy Queue</h3>
+          ${listQueue(state.discrepancies.slice(-6).reverse())}
+          <div class="row"><button class="btn" onclick="location.hash='queue'; render();">Open Queue</button></div>
+        </div>
+      </div>
+    </div>`;
+}
+function kpi(title,val){
+  return `<div class="card"><div class="muted">${title}</div><div style="font-size:28px;margin:6px 0">${val||0}</div><div class="bar"><span style="width:${Math.min(100,(+val||0))}%"></span></div></div>`;
+}
+function listScans(arr){
+  if(!arr.length) return `<div class="muted">No scans yet.</div>`;
+  // mobile-friendly list
+  return `<div class="grid">
+    ${arr.map(r=>`<div class="card" style="padding:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <div><b>${esc(r.sku)}</b><div class="muted" style="font-size:var(--fs-sm)">${esc(r.loc)}</div></div>
+        <div><span class="pill">Qty ${r.qty}</span><div class="muted" style="text-align:right;font-size:var(--fs-xs)}">${fmtWhen(r.when)}</div></div>
+      </div>
+      <div class="muted" style="margin-top:4px;font-size:var(--fs-sm)">${r.blind?'Blind':''} ${esc(r.note||'')}</div>
+    </div>`).join('')}
+  </div>`;
+}
+function listQueue(arr){
+  if(!arr.length) return `<div class="muted">No discrepancies.</div>`;
+  return `<div class="grid">
+    ${arr.map(d=>`<div class="card" style="padding:10px;display:grid;gap:6px">
+      <div style="display:flex;justify-content:space-between">
+        <div><b>${esc(d.id)}</b> — ${esc(d.sku)}</div>
+        <span class="pill">${d.status}</span>
+      </div>
+      <div class="muted">${esc(d.loc)}</div>
+      <div>Expected <b>${d.expected}</b> • Counted <b>${d.counted}</b></div>
+      <div class="row"><button class="btn ok" onclick="closeDisc('${d.id}')">Approve & Close</button></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderCount(){
+  view.innerHTML = `
+    <div class="grid">
+      <div class="card">
+        <h3>My Tasks</h3>
+        ${tableAssign(state.assignments)}
+      </div>
+      <div class="card">
+        <h3>Recent Scans</h3>
+        ${listScans(state.scans.slice(-12).reverse())}
+      </div>
+    </div>`;
+}
+function tableAssign(arr){
+  if(!arr.length) return `<div class="muted">No assignments.</div>`;
+  return `<table><thead><tr><th>User</th><th>Section</th><th>Bins</th><th>Route</th></tr></thead>
+    <tbody>${arr.map(a=>`<tr>
+      <td data-label="User">${esc(a.user)}</td>
+      <td data-label="Section">${esc(a.section)}</td>
+      <td data-label="Bins">${a.bins}</td>
+      <td data-label="Route">${a.route.join(', ')}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function renderQueue(){
+  view.innerHTML = `
+    <div class="grid">
+      <div class="card">
+        <h3>Discrepancy Queue</h3>
+        ${listQueue(state.discrepancies)}
+      </div>
+    </div>`;
+}
+
+function renderPlan(){
+  const s = state.sessions[0];
+  view.innerHTML = `
+    <div class="grid">
+      <div class="card">
+        <h3>Plan (BKK01)</h3>
+        ${s?`
+          <div class="grid" style="gap:10px">
+            <div class="row">
+              <div class="card" style="flex:1;min-width:160px"><div class="muted">Site</div><div>${esc(s.site)}</div></div>
+              <div class="card" style="flex:1;min-width:160px"><div class="muted">As-of</div><div>${esc(s.asof)}</div></div>
+              <div class="card" style="flex:1;min-width:160px"><div class="muted">Repeat</div><div>${esc(s.repeat)}</div></div>
+            </div>
+            <div class="row">
+              <div class="card" style="flex:1;min-width:160px"><div class="muted">Category</div><div>${esc(s.scope.category)}</div></div>
+              <div class="card" style="flex:1;min-width:160px"><div class="muted">Brand</div><div>${esc(s.scope.brand)}</div></div>
+              <div class="card" style="flex:1;min-width:160px"><div class="muted">Vendor</div><div>${esc(s.scope.vendor)}</div></div>
+            </div>
+          </div>` : '<div class="muted">No plan.</div>'}
+      </div>
+      <div class="card">
+        <h3>Sections</h3>
+        ${s? tableSections(s.sections): '<div class="muted">No sections.</div>'}
+      </div>
+      <div class="card">
+        <h3>Freeze Control</h3>
+        <div class="stack">${state.freezes.map(f=>`<span class="pill">Frozen: ${esc(f.bin)}</span>`).join('') || '<span class="muted">No frozen bins.</span>'}</div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn warn" onclick="toggleSheet('sheetFreeze',true)">Freeze / Unfreeze</button>
+        </div>
+      </div>
+    </div>`;
+}
+function tableSections(secs){
+  return `<table><thead><tr><th>Section</th><th>Bins</th><th>People</th><th>Duration</th></tr></thead>
+    <tbody>${secs.map(x=>`<tr>
+      <td data-label="Section">${esc(x.section)}</td>
+      <td data-label="Bins">${x.bins}</td>
+      <td data-label="People">${x.people}</td>
+      <td data-label="Duration">${x.duration}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function renderMore(){
+  view.innerHTML = `
+    <div class="grid">
+      <div class="card">
+        <h3>Settings</h3>
+        ${renderSettings()}
+      </div>
+      <div class="card">
+        <h3>Shelf ↔ Bin Mapping</h3>
+        ${renderMapping()}
+      </div>
+      <div class="card">
+        <h3>Data Controls</h3>
+        <div class="row">
+          <button class="btn primary" onclick="seedAll()">Re-seed Demo Data</button>
+          <button class="btn bad" onclick="clearAll()">Clear All Data</button>
+        </div>
+        <div class="muted" style="margin-top:6px">Stored in your browser (localStorage).</div>
+      </div>
+    </div>`;
+}
+
+function renderSettings(){
+  const cfg = state.cfg || {blind:true,twoMatch:true,photo:true};
+  return `<div class="grid">
+    <div class="row">
+      <div class="card" style="flex:1;min-width:160px"><label>Blind Count</label>
+        <select id="cfg-blind"><option value="true"${cfg.blind?' selected':''}>On</option><option value="false"${!cfg.blind?' selected':''}>Off</option></select>
+      </div>
+      <div class="card" style="flex:1;min-width:160px"><label>Two-Match Principle</label>
+        <select id="cfg-two"><option value="true"${cfg.twoMatch?' selected':''}>On</option><option value="false"${!cfg.twoMatch?' selected':''}>Off</option></select>
+      </div>
+      <div class="card" style="flex:1;min-width:160px"><label>Photo Evidence</label>
+        <select id="cfg-photo"><option value="true"${cfg.photo?' selected':''}>Required</option><option value="false"${!cfg.photo?' selected':''}>Optional</option></select>
+      </div>
+    </div>
+    <div class="row"><button class="btn ok" onclick="saveCfg()">Save</button></div>
+  </div>`;
+}
+function saveCfg(){
+  state.cfg = {
+    blind: document.getElementById('cfg-blind').value==='true',
+    twoMatch: document.getElementById('cfg-two').value==='true',
+    photo: document.getElementById('cfg-photo').value==='true',
+  };
+  persist();
+  alert('Saved (demo).');
+}
+
+function renderMapping(){
+  const maps = state.maps;
+  return `
+    <div class="row" style="gap:8px">
+      <div style="flex:1;min-width:120px">
+        <label>Shelf</label>
+        <input id="map-shelf" placeholder="A01" />
+      </div>
+      <div style="flex:2;min-width:160px">
+        <label>Bin</label>
+        <input id="map-bin" placeholder="A01-05-002" />
+      </div>
+      <div style="align-self:end"><button class="btn ok" onclick="addMapping()">Add</button></div>
+    </div>
+    ${maps.length ? `<div class="grid" style="margin-top:10px">${maps.map((m,i)=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+        <div><b>${esc(m.shelf)}</b> → ${esc(m.bin)}</div>
+        <button class="btn bad" onclick="delMapping(${i})">Delete</button>
+      </div>`).join('')}</div>` : '<div class="muted" style="margin-top:8px">No mappings yet.</div>'}`;
+}
+function addMapping(){
+  const shelf = document.getElementById('map-shelf').value.trim();
+  const bin = document.getElementById('map-bin').value.trim();
+  if(!shelf||!bin){ alert('Enter Shelf and Bin'); return; }
+  state.maps.push({shelf,bin}); persist(); render();
+}
+function delMapping(i){ state.maps.splice(i,1); persist(); render(); }
+
+// Actions
+function toggleSheet(id, on){ document.getElementById(id).style.display = on?'flex':'none'; }
+function submitScan(){
+  const loc = document.getElementById('sc-loc').value.trim();
+  const sku = document.getElementById('sc-sku').value.trim();
+  const qty = +document.getElementById('sc-qty').value||0;
+  const blind = document.getElementById('sc-blind').value==='true';
+  const note = document.getElementById('sc-note').value.trim();
+  if(!loc || !sku || qty<=0){ alert('Please fill Location, SKU and Qty > 0'); return; }
+  state.scans.push({when:Date.now(), loc, sku, qty, blind, note});
+  persist(); toggleSheet('sheetScan',false); render();
+}
+function markDiscrepancy(){
+  const loc = document.getElementById('sc-loc').value.trim();
+  const sku = document.getElementById('sc-sku').value.trim();
+  const qty = +document.getElementById('sc-qty').value||0;
+  if(!loc || !sku){ alert('Please fill Location and SKU'); return; }
+  const id = 'D-' + Math.floor(Math.random()*9000+1000);
+  state.discrepancies.push({id, loc, sku, expected:qty+2, counted:qty, status:'Open'});
+  persist(); toggleSheet('sheetScan',false); render();
+}
+function closeDisc(id){
+  const it = state.discrepancies.find(x=>x.id===id);
+  if(it){ it.status='Closed'; persist(); render(); }
+}
+function freezeBin(){
+  const bin = document.getElementById('fz-bin').value.trim();
+  if(!bin){ alert('Enter Bin'); return; }
+  state.freezes.push({bin, reason:document.getElementById('fz-reason').value.trim(), when:Date.now()});
+  persist(); toggleSheet('sheetFreeze',false); render();
+}
+function unfreezeBin(){
+  const bin = document.getElementById('fz-bin').value.trim();
+  state.freezes = state.freezes.filter(f=>f.bin!==bin); persist(); toggleSheet('sheetFreeze',false); render();
+}
+function seedAll(){ localStorage.clear(); location.reload(); }
+function clearAll(){ localStorage.clear(); alert('Cleared. Reloading...'); location.reload(); }
+
+// Utils
+function esc(s){return (s??'').toString().replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function fmtWhen(t){const d=new Date(t||Date.now()); return d.toLocaleString();}
+</script>
+</body>
+</html>
