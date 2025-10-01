@@ -72,6 +72,12 @@
   tbody tr{background:#fff;border:1px solid #e5e7eb;box-shadow: 0 1px 4px rgba(0,0,0,0.04); border-radius: var(--radius);}
   tbody tr td:first-child{border-top-left-radius:8px;border-bottom-left-radius:8px}
   tbody tr td:last-child{border-top-right-radius:8px;border-bottom-right-radius:8px}
+  /* Status pill colors */
+  .pill.status-pending { border-color: #cbd5e1; background: #fff; color: #334155; }
+  .pill.status-in-progress { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+  .pill.status-completed { border-color: #10b981; background: #d1fae5; color: #047857; font-weight: 600; }
+  .pill.status-frozen { border-color: #f97316; background: #fff7ed; color: #9a3412; font-weight: 600; }
+
   @media (max-width:760px){
     table thead{display:none}
     table tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px; margin-bottom: 10px;} 
@@ -227,7 +233,11 @@ try{
   state.assignments = JSON.parse(localStorage.getItem('pc_assignments')||'[]') || [];
   state.scans = JSON.parse(localStorage.getItem('pc_scans')||'[]') || [];
   state.discrepancies = JSON.parse(localStorage.getItem('pc_disc')||'[]') || [];
-  state.freezes = JSON.parse(localStorage.getItem('pc_freezes')||'[]') || {};
+  // IMPORTANT: Freezes array is now used to store bin status (Pending, In Progress, Completed).
+  // The 'freezes' array is renamed to 'binStatus' in the state object.
+  // We keep the old name in localStorage for backward compatibility during this fix, 
+  // but logically, it holds the counting status, not just a 'frozen' flag.
+  state.freezes = JSON.parse(localStorage.getItem('pc_freezes')||'[]') || []; 
   state.cfgByPlan = JSON.parse(localStorage.getItem('pc_cfgByPlan')||'{}') || {};
   state.currentPlanId = localStorage.getItem('pc_currentPlanId') || null;
   stateReady = true;
@@ -242,7 +252,7 @@ function persist(){
     localStorage.setItem('pc_assignments', JSON.stringify(state.assignments));
     localStorage.setItem('pc_scans', JSON.stringify(state.scans));
     localStorage.setItem('pc_disc', JSON.stringify(state.discrepancies));
-    localStorage.setItem('pc_freezes', JSON.stringify(state.freezes));
+    localStorage.setItem('pc_freezes', JSON.stringify(state.freezes)); // Persist the 'binStatus' data under old name
     localStorage.setItem('pc_cfgByPlan', JSON.stringify(state.cfgByPlan));
     if(state.currentPlanId) localStorage.setItem('pc_currentPlanId', state.currentPlanId);
   }catch(_){}
@@ -479,6 +489,23 @@ function refreshActivePlanBadge(){
   badge.innerHTML = 'Plan: <b>' + (p? esc(p.id) : '—') + '</b>';
 }
 
+// Helper to get the bin status object (used to simulate Freeze status)
+function getBinStatus(pid, binId) {
+    return state.freezes.find(s => s.planId === pid && s.binId === binId);
+}
+
+// Helper to set the bin status (used to simulate Freeze status)
+function setBinStatus(pid, binId, status) {
+    let statusObj = getBinStatus(pid, binId);
+    if (!statusObj) {
+        statusObj = { planId: pid, binId, status: 'Pending', when: Date.now() };
+        state.freezes.push(statusObj);
+    }
+    statusObj.status = status;
+    statusObj.when = Date.now();
+    persist();
+}
+
 // ===== PLAN VIEW FUNCTIONS =====
 function planSelector(){
   return `<div class="row" style="align-items:end">
@@ -582,7 +609,9 @@ function renderBinTargets(){
   const skuCnt = currentBin ? distinctSkuCountForBin(pid, currentBinId) : 0;
   const qtySum = currentBin ? sumQtyForBin(pid, currentBinId) : 0;
   const isDone = currentBin ? (expectedVal > 0 ? skuCnt >= expectedVal : skuCnt > 0) : false;
-  const statusPill = `<span class="pill" style="border-color:${isDone?'#10b981':'#cbd5e1'};background:${isDone?'#d1fae5':'#fff'}; color:${isDone?'#047857':'#334155'}; font-weight: 600;">${isDone?'Completed':'Pending'}</span>`;
+  
+  const status = getBinStatus(pid, currentBinId)?.status || 'Pending';
+  const statusPill = `<span class="pill status-${status.toLowerCase().replace(/\s/g, '-')}" style="font-weight: 600;">${status}</span>`;
 
 
   return `<div id="binTargetControls">
@@ -697,7 +726,7 @@ function delRoute(key){
     state.bins = state.bins.filter(b=>!(b.planId===pid && b.routeKey===key));
     state.scans = state.scans.filter(s=>!(s.planId===pid && s.routeKey===key));
     
-    // Remove freezes and discrepancies that targeted bins in this route
+    // Remove bin status records and discrepancies that targeted bins in this route
     state.freezes = state.freezes.filter(f=>!(f.planId===pid && r.stops.includes(f.binId)));
     state.discrepancies = state.discrepancies.filter(d=>!(d.planId===pid && r.stops.includes(d.binId)));
     
@@ -795,10 +824,11 @@ function renderExecute(){
             <label>Bin</label>
             <select id="exe-bin">${
               allBins.length? allBins.map(b=>{
-                const frozen = state.freezes.some(f=>f.planId===pid && f.binId===b.binId);
+                const status = getBinStatus(pid, b.binId)?.status || 'Pending';
+                const frozen = (status === 'In Progress' || status === 'Completed');
                 const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
                 const assignedClass = (routeUser === currentUser) ? 'primary' : (routeUser === 'Unassigned' ? '' : 'warn');
-                return `<option ${frozen?'disabled':''} data-user="${esc(routeUser)}" class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)})${frozen?' (Frozen)':''}</option>`;
+                return `<option ${frozen?'disabled':''} data-user="${esc(routeUser)}" class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)}) (${status})</option>`;
               }).join('') : '<option disabled>No bins</option>'
             }</select>
           </div>
@@ -821,7 +851,11 @@ function renderExecute(){
     const exp = (b && (b.expectedSkus!=null?b.expectedSkus:(b.expectedItems!=null?b.expectedItems:1)));
     const skuCnt = distinctSkuCountForBin(pid, binId);
     const qtySum = sumQtyForBin(pid, binId);
-    document.getElementById('binStat').innerHTML = `Target SKUs ${exp} • Counted SKUs ${skuCnt} • Qty Sum ${qtySum} ${skuCnt>=exp? '• <b>Completed</b>':''}`;
+    
+    const status = getBinStatus(pid, binId)?.status || 'Pending';
+    const completionText = skuCnt>=exp ? '• **Completed**' : (skuCnt > 0 ? '• *In Progress*' : '• Pending');
+    
+    document.getElementById('binStat').innerHTML = `Status: <b>${status}</b> • Target SKUs ${exp} • Counted SKUs ${skuCnt} • Qty Sum ${qtySum} ${completionText}`;
   }
   if(sel){ sel.addEventListener('change', updateBinStat); updateBinStat(); }
   paintIcons(view);
@@ -831,10 +865,11 @@ function populateScanBins(){
   const pid = state.currentPlanId;
   const sel = document.getElementById('sc-bin'); if(!sel) return;
   sel.innerHTML = allBinsOfPlan(pid).map(b=>{
-    const frozen = state.freezes.some(f=>f.planId===pid && f.binId===b.binId);
+    const status = getBinStatus(pid, b.binId)?.status || 'Pending';
+    const frozen = (status === 'In Progress' || status === 'Completed');
     const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
     const assignedClass = (routeUser === currentUser) ? 'text-blue-600' : (routeUser === 'Unassigned' ? 'text-gray-600' : 'text-yellow-600');
-    return `<option ${frozen?'disabled':''} class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)})${frozen?' (Frozen)':''}</option>`;
+    return `<option ${frozen?'disabled':''} class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)}) (${status})</option>`;
   }).join('');
 }
 function listScans(arr){
@@ -860,19 +895,43 @@ function submitScan(){
   const [rk, binId] = rkbin.split('::');
   const exists = state.bins.some(b=>b.planId===pid && b.routeKey===rk && b.binId===binId);
   if(!exists){ showMessage('Error', 'Bin must belong to current plan & selected route.'); return; }
-  const isFrozen = state.freezes.some(f=>f.planId===pid && f.binId===binId);
-  if(isFrozen){ showMessage('Error', 'This bin is frozen. You cannot scan/count until it is unfrozen.'); return; }
+  
+  // Check the effective freeze status based on counting progress
+  const status = getBinStatus(pid, binId)?.status || 'Pending';
+  if (status === 'Completed') {
+      showMessage('Alert', 'This bin is already **Completed** and effectively frozen. Cannot add more scans.'); 
+      return; 
+  }
+
   const sku = document.getElementById('sc-sku').value.trim();
   const qty = +document.getElementById('sc-qty').value||0;
   const blind = document.getElementById('sc-blind').value==='true';
   const note = document.getElementById('sc-note').value.trim();
   if(!sku || qty<=0){ showMessage('Error', 'SKU and Qty>0 required'); return; }
+  
+  // 1. Log the scan entry
   state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
+
+  // 2. Update Freeze Status (or Counting Status)
+  
+  // Get bin details and current counts AFTER adding the new scan
+  const bin = allBinsOfPlan(pid).find(b => b.binId === binId);
+  const currentSkuCount = distinctSkuCountForBin(pid, binId);
+  const expectedSkus = (bin && bin.expectedSkus != null) ? bin.expectedSkus : 1; // Default to 1 if no target set
+
+  if (currentSkuCount >= expectedSkus) {
+      // Auto-Unfreeze / Complete: If count meets or exceeds target
+      setBinStatus(pid, binId, 'Completed');
+  } else if (currentSkuCount > 0) {
+      // Auto-Freeze / In Progress: If it's the first scan for this bin
+      setBinStatus(pid, binId, 'In Progress');
+  }
+
   persist(); toggleSheet('sheetScan',false); stopCam(); render();
 }
 // Removed markDiscrepancy function as requested.
 
-// ===== VALIDATE VIEW FUNCTIONS =====
+// ===== VALIDATE VIEW FUNCTIONS (Updated to show Bin Status) =====
 function renderValidate(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
@@ -902,21 +961,8 @@ function renderValidate(){
       </div>
 
       <div class="card">
-        <h3><span class="ico-inline" data-ic="freeze"></span> Bin Controls (Freeze)</h3>
-        <div class="row">
-          <div style="flex:1;min-width:200px">
-            <label>Bin</label>
-            <select id="vc-bin"></select>
-          </div>
-          <div style="flex:1;min-width:220px">
-            <label>Freeze Reason</label>
-            <input id="vc-reason" placeholder="Cycle count in progress"/>
-          </div>
-        </div>
-        <div class="row">
-          <button class="btn warn" onclick="vcFreeze()"><span class="ico-inline" data-ic="freeze"></span> Freeze</button>
-          <button class="btn ok" onclick="vcUnfreeze()"><span class="ico-inline" data-ic="flame"></span> Unfreeze</button>
-        </div>
+        <h3><span class="ico-inline" data-ic="freeze"></span> Bin Freeze Status (Auto-Managed)</h3>
+        ${renderBinFreezeStatus(pid)}
       </div>
 
       <div class="card">
@@ -924,17 +970,61 @@ function renderValidate(){
         ${listDiscrepancies(state.discrepancies.filter(d=>d.planId===pid && d.status==='Open'))}
       </div>
     </div>`;
-  const vcSel = document.getElementById('vc-bin');
-  if(vcSel){
-    const bins = allBinsOfPlan(pid);
-    vcSel.innerHTML = bins.map(b=>{
-      const frozen = state.freezes.some(f=>f.planId===pid && f.binId===b.binId);
-      const [pid2]=b.routeKey.split("|");
-      return `<option value="${b.binId}">${pid2} • ${b.section} • ${b.binId}${frozen?' (Frozen)':''}</option>`;
-    }).join('');
-  }
   paintIcons(view); refreshActivePlanBadge();
 }
+
+function renderBinFreezeStatus(pid) {
+    const bins = allBinsOfPlan(pid);
+    if (!bins.length) return empty('No bins defined for this plan.');
+
+    // Merge bin data with its status
+    const binData = bins.map(b => {
+        const statusObj = getBinStatus(pid, b.binId);
+        const status = statusObj?.status || 'Pending';
+        const isFrozen = (status === 'In Progress');
+        const isCompleted = (status === 'Completed');
+        const completionTime = statusObj?.when ? fmtWhen(statusObj.when) : '—';
+        return {
+            binId: b.binId,
+            section: b.section,
+            status: status,
+            isFrozen: isFrozen,
+            isCompleted: isCompleted,
+            completionTime: completionTime
+        };
+    }).sort((a, b) => {
+        // Sort: In Progress > Pending > Completed
+        const statusOrder = { 'In Progress': 1, 'Pending': 2, 'Completed': 3 };
+        return statusOrder[a.status] - statusOrder[b.status];
+    });
+
+    const rows = binData.map(d => `
+        <tr>
+            <td data-label="Bin">${esc(d.binId)}</td>
+            <td data-label="Section">${esc(d.section)}</td>
+            <td data-label="Status">
+                <span class="pill status-${d.status.toLowerCase().replace(/\s/g, '-')}">${d.status}</span>
+            </td>
+            <td data-label="SAP Flag">${d.isCompleted ? 'Unfreeze (Complete)' : (d.status === 'In Progress' ? 'Freeze (Count In Progress)' : 'Unfreeze (Pending)')}</td>
+            <td data-label="Time">${d.completionTime}</td>
+        </tr>
+    `).join('');
+
+    return `<table>
+        <thead>
+            <tr>
+                <th>Bin</th>
+                <th>Section</th>
+                <th>Status</th>
+                <th>SAP Flag</th>
+                <th>Last Update</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
+
 function listDiscrepancies(arr){
   if(!arr.length) return empty('No open discrepancies.');
   return `<table><thead><tr><th>ID</th><th>Bin</th><th>SKU</th><th>Type</th><th>Expected</th><th>Counted</th><th>Action</th></tr></thead>
@@ -959,22 +1049,8 @@ function resolveDiscrepancy(id){
   });
 }
 
-function vcFreeze(){
-  const pid = state.currentPlanId;
-  const binId = (document.getElementById('vc-bin')||{}).value;
-  const reason = (document.getElementById('vc-reason')||{}).value||'Frozen';
-  if(!binId) return showMessage('Error', 'Select a bin');
-  if(state.freezes.some(f=>f.planId===pid && f.binId===binId)) return showMessage('Alert', 'Bin already frozen');
-  state.freezes.push({planId:pid, binId, reason, when:Date.now()}); persist(); renderValidate();
-  showMessage('Success', `Bin ${binId} successfully frozen.`);
-}
-function vcUnfreeze(){
-  const pid = state.currentPlanId;
-  const binId = (document.getElementById('vc-bin')||{}).value;
-  if(!binId) return showMessage('Error', 'Select a bin');
-  state.freezes = state.freezes.filter(f=>!(f.planId===pid && f.binId===binId)); persist(); renderValidate();
-  showMessage('Success', `Bin ${binId} successfully unfrozen.`);
-}
+// Removed vcFreeze and vcUnfreeze as the status is now managed by counting activity.
+
 function saveCfg(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
@@ -990,15 +1066,15 @@ function saveCfg(){
 // ===== REPORTS VIEW FUNCTIONS =====
 function kpiData(pid){
   const routes = state.routes.filter(r=>r.planId===pid);
-  const bins = state.bins.filter(b=>b.planId===pid);
+  const bins = allBinsOfPlan(pid);
   const scans = state.scans.filter(s=>s.planId===pid);
-  const frozen = state.freezes.filter(f=>f.planId===pid).length;
+  
+  const binsStatus = bins.map(b => getBinStatus(pid, b.binId)?.status || 'Pending');
 
-  const binsDone = bins.filter(b=>{
-    const exp = (b.expectedSkus!=null?b.expectedSkus:(b.expectedItems!=null?b.expectedItems:1));
-    const skuCnt = distinctSkuCountForBin(pid, b.binId);
-    return exp>0 ? skuCnt>=exp : skuCnt>0;
-  }).length;
+  const binsInProgress = binsStatus.filter(s => s === 'In Progress').length;
+  const binsDone = binsStatus.filter(s => s === 'Completed').length;
+  const frozen = binsInProgress; // Frozen state is equivalent to 'In Progress' for reporting
+  
   const progressPct = bins.length ? Math.round(binsDone*100/bins.length) : 0;
 
   const routeKeySet = new Set(routes.map(r=>keyOf(r)));
@@ -1011,18 +1087,16 @@ function kpiData(pid){
     const u = a.user;
     if(!byUser[u]) byUser[u] = {assignedRoutes:0, countedRoutes:0, bins:0, binsDone:0};
     byUser[u].assignedRoutes += 1;
-    const rBins = state.bins.filter(b=>b.planId===pid && b.routeKey===a.routeKey);
+    const rBins = binsOfRoute(pid, a.routeKey);
     byUser[u].bins += rBins.length;
     const binsScanned = new Set(scans.filter(s=>s.routeKey===a.routeKey).map(s=>s.binId));
     if(binsScanned.size > 0) byUser[u].countedRoutes += 1; // Route is counted if at least one bin in it has a scan
     
-    // Count bins completed on this route (based on plan expectations)
+    // Count bins completed on this route (based on calculated status)
     let doneOnRouteCount = 0;
     rBins.forEach(b => {
-      const exp = (b.expectedSkus!=null?b.expectedSkus:(b.expectedItems!=null?b.expectedItems:1));
-      const skuCnt = distinctSkuCountForBin(pid, b.binId);
-      const isDone = exp>0 ? skuCnt>=exp : skuCnt>0;
-      if (isDone) doneOnRouteCount++;
+      const status = getBinStatus(pid, b.binId)?.status || 'Pending';
+      if (status === 'Completed') doneOnRouteCount++;
     });
 
     byUser[u].binsDone += doneOnRouteCount;
