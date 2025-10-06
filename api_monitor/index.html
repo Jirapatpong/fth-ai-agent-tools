@@ -10,6 +10,7 @@
         body { font-family: 'Inter', sans-serif; }
         .metric-card { transition: transform 0.2s, box-shadow 0.2s; }
         .metric-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }
+        .table-cell-wide { min-width: 250px; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -33,19 +34,23 @@
                 <button id="exportBtn" class="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition duration-300">Export to Excel</button>
             </div>
             
-            <div id="dashboard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div id="dashboard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <!-- Metric cards will be inserted here -->
             </div>
 
-            <h2 class="text-2xl font-semibold mb-4">3. Comparison Table</h2>
-            <div class="bg-white p-2 rounded-lg shadow-md overflow-x-auto">
+            <h2 class="text-2xl font-semibold mb-4">3. Comparison Summary Table</h2>
+            <div class="bg-white p-2 rounded-lg shadow-md overflow-x-auto mb-8">
                 <table class="min-w-full divide-y divide-gray-200" id="comparisonTable">
-                    <thead class="bg-gray-50">
-                        <!-- Table headers will be inserted here -->
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <!-- Table rows will be inserted here -->
-                    </tbody>
+                    <thead class="bg-gray-50"></thead>
+                    <tbody class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            
+            <h2 class="text-2xl font-semibold mb-4">4. Traceroute Hop Comparison</h2>
+            <div class="bg-white p-2 rounded-lg shadow-md overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200" id="tracerouteTable">
+                    <thead class="bg-gray-50"></thead>
+                    <tbody class="bg-white divide-y divide-gray-200"></tbody>
                 </table>
             </div>
         </div>
@@ -58,6 +63,7 @@
         const resultsDiv = document.getElementById('results');
         const dashboardDiv = document.getElementById('dashboard');
         const comparisonTable = document.getElementById('comparisonTable');
+        const tracerouteTable = document.getElementById('tracerouteTable');
         let parsedData = [];
 
         analyzeBtn.addEventListener('click', () => {
@@ -69,43 +75,129 @@
             
             parsedData = [];
             let promises = Array.from(files).map(file => {
-                return new Promise((resolve, reject) => {
+                return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (event) => {
-                        const content = event.target.result;
-                        const data = parseLogFile(content, file.name);
-                        parsedData.push(data);
+                        try {
+                            const content = event.target.result;
+                            const data = parseLogFile(content, file.name);
+                            parsedData.push(data);
+                        } catch (e) {
+                            console.error(`Error parsing file ${file.name}:`, e);
+                        }
                         resolve();
                     };
-                    reader.onerror = reject;
                     reader.readAsText(file);
                 });
             });
 
             Promise.all(promises).then(() => {
-                // Sort data by date for chronological comparison
-                parsedData.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+                // Sort by PC name first, then by date
+                parsedData.sort((a, b) => {
+                    const nameCompare = a.computerName.localeCompare(b.computerName);
+                    if (nameCompare !== 0) {
+                        return nameCompare;
+                    }
+                    return new Date(a.dateTime) - new Date(b.dateTime);
+                });
                 renderDashboard();
                 renderTable();
+                renderTracerouteTable();
                 resultsDiv.classList.remove('hidden');
             });
         });
 
         exportBtn.addEventListener('click', () => {
-            // Create a clean copy of the comparison data for export.
-            const summaryDataForExport = JSON.parse(JSON.stringify(parsedData));
-            summaryDataForExport.forEach(d => delete d.rawLog); // Remove rawLog property
-
-            const summaryWorksheet = XLSX.utils.json_to_sheet(summaryDataForExport);
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, summaryWorksheet, "Comparison Data");
+
+            // Sheet 1: Comparison Summary
+            const summaryForExport = parsedData.map(d => ({
+                'PC Name': d.computerName,
+                'Date & Time': d.dateTime,
+                'DNS Resolve (ms)': d.dnsResolutionTime.toFixed(0),
+                'TCP Conn (ms)': d.curlTcpConn.toFixed(0),
+                'Server TTFB (ms)': d.curlTtfb.toFixed(0),
+                'Total API (ms)': d.curlTotalTime.toFixed(0),
+                'Traceroute Timeouts': d.tracerouteTimeouts
+            }));
+            const summaryWorksheet = XLSX.utils.json_to_sheet(summaryForExport);
+            XLSX.utils.book_append_sheet(workbook, summaryWorksheet, "Comparison Summary");
+
+            // Sheet 2: Traceroute Details (Pivoted and Cleaned)
+            const maxHops = Math.max(0, ...parsedData.flatMap(d => d.tracerouteHops.map(h => h.hop)));
+            const validHops = [];
+            for (let i = 1; i <= maxHops; i++) {
+                if (parsedData.some(data => data.tracerouteHops.some(h => h.hop === i && h.avgLatency !== 'N/A'))) {
+                    validHops.push(i);
+                }
+            }
+
+            if (validHops.length > 0) {
+                const traceHeaders = ['PC Name', 'Date & Time', ...validHops.map(h => `Hop ${h}`), 'Average (ms)'];
+                const traceRows = [traceHeaders];
+
+                parsedData.forEach(data => {
+                    const row = [data.computerName, data.dateTime];
+                    let totalLatency = 0;
+                    let validHopCount = 0;
+
+                    validHops.forEach(hopNum => {
+                        const hopData = data.tracerouteHops.find(h => h.hop === hopNum);
+                        if (hopData && hopData.avgLatency !== 'N/A') {
+                            const latency = parseFloat(hopData.avgLatency);
+                            row.push(latency.toFixed(0));
+                            totalLatency += latency;
+                            validHopCount++;
+                        } else {
+                            row.push('-');
+                        }
+                    });
+                    const avg = validHopCount > 0 ? (totalLatency / validHopCount).toFixed(0) : 'N/A';
+                    row.push(avg);
+                    traceRows.push(row);
+                });
+
+                const traceWorksheet = XLSX.utils.aoa_to_sheet(traceRows);
+                XLSX.utils.book_append_sheet(workbook, traceWorksheet, "Traceroute Details");
+            }
 
             XLSX.writeFile(workbook, "Network_Analysis_Report.xlsx");
         });
+        
+        function parseTracerouteHops(content) {
+            const hops = [];
+            const traceSectionMatch = content.match(/TRACEROUTE TO VIEW NETWORK PATH([\s\S]*?)===== /);
+            if (!traceSectionMatch) return hops;
+
+            const traceLines = traceSectionMatch[1].split('\n');
+            const hopRegex = /^\s*(\d+)\s+(<?\d+\sms|\*)\s+(<?\d+\sms|\*)\s+(<?\d+\sms|\*)\s+(.*)/;
+
+            for (const line of traceLines) {
+                const match = line.match(hopRegex);
+                if (match) {
+                    const [_, hopNum, rtt1, rtt2, rtt3, address] = match;
+                    const latencies = [rtt1, rtt2, rtt3]
+                        .map(r => r.trim().replace('<', ''))
+                        .filter(r => r !== '*')
+                        .map(r => parseInt(r.replace('ms', '')));
+                    
+                    const avgLatency = latencies.length > 0 
+                        ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(0) 
+                        : 'N/A';
+
+                    hops.push({
+                        hop: parseInt(hopNum),
+                        avgLatency: avgLatency,
+                        address: address.trim()
+                    });
+                }
+            }
+            return hops;
+        }
 
         function parseLogFile(content, fileName) {
             const computerName = fileName.split('_')[0] || 'N/A';
-            const dateTimeMatch = content.match(/Report generated on: (\S+ at \S+)/);
+            const dateTimeMatch = content.match(/Report generated on:\s*(.*?)(?:\r\n|\n)/);
             const dateTime = dateTimeMatch ? new Date(dateTimeMatch[1].replace(' at ', ' ')) : new Date();
 
             const getStat = (regex, defaultValue = 'N/A') => {
@@ -115,36 +207,24 @@
             
             const getFloatStat = (regex, multiplier = 1) => {
                 const value = getStat(regex, '0');
-                return parseFloat(value) * multiplier;
-            };
-
-            const getDnsPing = () => {
-                const avgMatch = content.match(/Pinging DNS Server: [\d\.]+\s*.*?Average = (\d+)ms/s);
-                return avgMatch ? parseInt(avgMatch[1]) : 'N/A';
-            };
-            
-            const getTracerouteTimeouts = () => {
-                const matches = content.match(/Request timed out/g);
-                return matches ? matches.length : 0;
+                return (value && !isNaN(parseFloat(value))) ? parseFloat(value) * multiplier : 0;
             };
 
             return {
                 fileName: fileName,
                 computerName: computerName,
                 dateTime: dateTime.toLocaleString(),
-                dnsPingAvg: getDnsPing(),
-                tracerouteTimeouts: getTracerouteTimeouts(),
+                tracerouteHops: parseTracerouteHops(content),
+                tracerouteTimeouts: (content.match(/Request timed out/g) || []).length,
                 dnsResolutionTime: getFloatStat(/DNS LATENCY.*?TotalMilliseconds\s+:\s+([\d.]+)/s, 1),
-                destPingAvg: parseInt(getStat(/Pinging destination IP.*?Average = (\d+)ms/s, '0')),
                 curlTcpConn: getFloatStat(/TCP Connection:\s+([\d.]+)s/s, 1000),
                 curlTtfb: getFloatStat(/TTFB:\s+([\d.]+)s/s, 1000),
                 curlTotalTime: getFloatStat(/Total Time:\s+([\d.]+)s/s, 1000),
-                rawLog: content, // Keep the raw log content for potential future use
             };
         }
 
         function getStatusColor(value, good, warn) {
-            if (value === 'N/A' || value > warn) return 'text-red-500';
+            if (value === 'N/A' || isNaN(value) || value > warn) return 'text-red-500';
             if (value > good) return 'text-yellow-500';
             return 'text-green-500';
         }
@@ -162,21 +242,18 @@
             dashboardDiv.innerHTML = '';
             if (parsedData.length === 0) return;
 
-            // Show metrics from the most recent log file
             const latest = parsedData[parsedData.length - 1];
             
-            dashboardDiv.innerHTML += createMetricCard('Local DNS Ping', latest.dnsPingAvg, 'ms', getStatusColor(latest.dnsPingAvg, 20, 100), 'Latency to your local DNS server.');
             dashboardDiv.innerHTML += createMetricCard('DNS Resolution', latest.dnsResolutionTime.toFixed(0), 'ms', getStatusColor(latest.dnsResolutionTime, 200, 500), 'Time to find the server\'s IP.');
-            dashboardDiv.innerHTML += createMetricCard('Destination Ping', latest.destPingAvg, 'ms', getStatusColor(latest.destPingAvg, 80, 200), 'Latency to the API server.');
             dashboardDiv.innerHTML += createMetricCard('TCP Connection', latest.curlTcpConn.toFixed(0), 'ms', getStatusColor(latest.curlTcpConn, 200, 500), 'Time to establish a connection.');
             dashboardDiv.innerHTML += createMetricCard('Server Response (TTFB)', latest.curlTtfb.toFixed(0), 'ms', getStatusColor(latest.curlTtfb, 600, 1200), 'Time for server to send first byte.');
-            dashboardDiv.innerHTML += createMetricCard('Traceroute Timeouts', latest.tracerouteTimeouts, '', getStatusColor(latest.tracerouteTimeouts, -1, 0), 'Number of lost packets in path.');
+            dashboardDiv.innerHTML += createMetricCard('Traceroute Timeouts', latest.tracerouteTimeouts, '', getStatusColor(latest.tracerouteTimeouts, 1, 5), 'Number of lost packets in path.');
         }
 
         function renderTable() {
             const headers = [
-                'File Name', 'Date & Time', 'PC Name',
-                'Local DNS (ms)', 'DNS Resolve (ms)', 'Dest Ping (ms)',
+                'PC Name', 'Date & Time',
+                'DNS Resolve (ms)',
                 'TCP Conn (ms)', 'Server TTFB (ms)', 'Total API (ms)',
                 'Traceroute Timeouts'
             ];
@@ -190,20 +267,77 @@
             parsedData.forEach(data => {
                 bodyHtml += `
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${data.fileName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${data.computerName}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.dateTime}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.computerName}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.dnsPingAvg, 20, 100)}">${data.dnsPingAvg}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.dnsResolutionTime, 200, 500)}">${data.dnsResolutionTime.toFixed(0)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.destPingAvg, 80, 200)}">${data.destPingAvg}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.curlTcpConn, 200, 500)}">${data.curlTcpConn.toFixed(0)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.curlTtfb, 600, 1200)}">${data.curlTtfb.toFixed(0)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.curlTotalTime.toFixed(0)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.tracerouteTimeouts, -1, 0)}">${data.tracerouteTimeouts}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${getStatusColor(data.tracerouteTimeouts, 1, 5)}">${data.tracerouteTimeouts}</td>
                     </tr>`;
             });
             comparisonTable.querySelector('tbody').innerHTML = bodyHtml;
         }
+
+        function renderTracerouteTable() {
+            const maxHops = Math.max(0, ...parsedData.flatMap(d => d.tracerouteHops.map(h => h.hop)));
+            if (maxHops === 0) {
+                tracerouteTable.querySelector('tbody').innerHTML = '<tr><td colspan="99" class="text-center text-gray-500 p-4">No valid traceroute data found.</td></tr>';
+                return;
+            }
+
+            const validHops = [];
+            for (let i = 1; i <= maxHops; i++) {
+                if (parsedData.some(data => data.tracerouteHops.some(h => h.hop === i && h.avgLatency !== 'N/A'))) {
+                    validHops.push(i);
+                }
+            }
+
+            if (validHops.length === 0) {
+                tracerouteTable.querySelector('tbody').innerHTML = '<tr><td colspan="99" class="text-center text-gray-500 p-4">All traceroute hops timed out.</td></tr>';
+                return;
+            }
+
+            // Build Headers
+            let headerHtml = '<tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PC Name</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>';
+            validHops.forEach(hopNum => {
+                headerHtml += `<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hop ${hopNum}</th>`;
+            });
+            headerHtml += `<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Average</th></tr>`;
+            tracerouteTable.querySelector('thead').innerHTML = headerHtml;
+
+            // Build Body
+            let bodyHtml = '';
+            parsedData.forEach(data => {
+                bodyHtml += `<tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${data.computerName}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.dateTime}</td>`;
+                
+                let totalLatency = 0;
+                let validHopCount = 0;
+
+                validHops.forEach(hopNum => {
+                    const hopData = data.tracerouteHops.find(h => h.hop === hopNum);
+                    if (hopData && hopData.avgLatency !== 'N/A') {
+                        const latency = parseFloat(hopData.avgLatency);
+                        totalLatency += latency;
+                        validHopCount++;
+                        const color = getStatusColor(latency, 80, 200);
+                        bodyHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-center ${color}">${latency.toFixed(0)}ms</td>`;
+                    } else {
+                        bodyHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-center text-red-500">T/O</td>`;
+                    }
+                });
+                
+                const avg = validHopCount > 0 ? (totalLatency / validHopCount) : 'N/A';
+                const avgColor = getStatusColor(avg, 80, 200);
+                bodyHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-center font-bold ${avgColor}">${avg === 'N/A' ? 'N/A' : avg.toFixed(0) + 'ms'}</td>`;
+
+                bodyHtml += '</tr>';
+            });
+            tracerouteTable.querySelector('tbody').innerHTML = bodyHtml;
+        }
+
     </script>
 </body>
 </html>
