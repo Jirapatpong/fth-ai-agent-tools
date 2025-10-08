@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Reporting Module — Performance & Finalization</title>
+<style>
+  /* Base styles for corporate dashboard look */
+  :root{
+    --bg:#f6f8fb; 
+    --panel:#ffffff; 
+    --muted:#637082; 
+    --text:#0b1220;
+    --brand:#3b82f6; /* Primary Blue */
+    --success:#10b981; /* Green */
+    --warning:#f59e0b; /* Yellow */
+    --danger:#f87171; /* Red */
+    --line:#d1d5db; 
+    --shadow:0 4px 12px rgba(17,24,39,.12);
+    --radius:12px; 
+    --fs-sm: 14px;
+    --fs-md: 16px;
+    --fs-lg: 18px;
+    --fs-xl: 24px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial; min-height: 100dvh;}
+  header{padding:16px 20px;background:var(--brand);color:#fff;box-shadow:var(--shadow); display:flex; justify-content:space-between; align-items:center;}
+  header h1{margin:0;font-size:var(--fs-xl); display:flex; align-items:center; gap: 10px;}
+  .container{max-width:1400px;margin:0 auto;padding:20px 10px}
+  .grid{display:grid;gap:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);}
+  .card h3{margin:0 0 15px 0;font-size:var(--fs-lg);display:flex;align-items:center;gap:8px; color: #1f2937; border-bottom: 2px solid #eef2ff; padding-bottom: 10px;}
+  .muted{color:var(--muted); font-size: var(--fs-sm);}
+
+  /* Tab Navigation */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--line);
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    padding: 12px 25px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: var(--fs-md);
+    font-weight: 600;
+    color: #4b5563;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  .tab-btn.active {
+    color: var(--brand);
+    border-bottom: 2px solid var(--brand);
+    background: #eef2ff;
+  }
+  
+  /* KPI boxes */
+  .kpis {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .kpi{flex:1; background:#fff;border:1px solid #e5e7eb;border-radius:var(--radius);padding:15px; min-width: 180px; text-align: center;}
+  .kpi .val{font-size:36px;font-weight:800; color: var(--brand); margin-bottom: 4px;}
+  .kpi .lbl{font-size:var(--fs-sm);color:#4b5563;}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin-top:10px;}
+  th,td{text-align:left;padding:10px 15px; border-bottom: 1px solid #f3f4f6;}
+  thead th{font-size:var(--fs-sm);color:#475569; background: #f9fafb;}
+  tbody tr:nth-child(even){background:#fafafa;}
+  
+  /* Status pill colors */
+  .pill{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:12px; font-weight: 600;}
+  .pill.pending { background: #fffbeb; color: #b45309; border: 1px solid var(--warning); }
+  .pill.completed { background: #d1fae5; color: #047857; border: 1px solid var(--success); }
+  .pill.problem { background: #fee2e2; color: #b91c1c; border: 1px solid var(--danger); }
+  
+  /* Progress Bar */
+  .progress-bar {
+      height: 25px;
+      background: #e0f2fe;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+  }
+  .progress-fill {
+      height: 100%;
+      background: var(--success);
+      transition: width 0.5s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 600;
+  }
+
+  /* Grid structure specific to the Dashboard tab */
+  #dashboardContent .grid {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  /* Icon styles */
+  .ico-inline{width:20px;height:20px;color:var(--success)}
+
+</style>
+</head>
+<body>
+<header>
+    <h1><span class="ico-inline" data-ic="report"></span> Logistics Inventory Reporting Module</h1>
+    <select id="plan-selector" onchange="render()"></select>
+</header>
+
+<div class="container">
+    <div class="tabs" id="reportTabs">
+        <button class="tab-btn active" data-tab="dashboard" onclick="setTab('dashboard')">Dashboard Overview</button>
+        <button class="tab-btn" data-tab="performance" onclick="setTab('performance')">Performance Report (KPI)</button>
+        <button class="tab-btn" data-tab="summary" onclick="setTab('summary')">Session Summary Report</button>
+        <button class="tab-btn" data-tab="detail" onclick="setTab('detail')">Bin/Shelf Level Report</button>
+    </div>
+
+    <div id="reportContent">
+        <!-- Tab content rendered here -->
+    </div>
+</div>
+
+<script>
+// --- ICON DEFINITIONS ---
+const ICONS = {
+  report:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M4 4h10l6 6v10a2 2 0 0 1-2 2H4z"/><path d="M14 4v6h6"/><path d="M8 16v4M12 14v6M16 12v8"/></svg>`,
+  shield:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 2l7 4v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-4z"/></svg>`,
+};
+function paintIcons(scope=document){ scope.querySelectorAll('[data-ic]').forEach(el=>{ el.innerHTML = ICONS[el.getAttribute('data-ic')]||''; }); }
+function esc(s){return (s??'').toString().replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function fmtWhen(t){const d=new Date(t||Date.now()); return d.toLocaleString();}
+function getMinutesBetween(t1, t2) { return Math.abs(t1 - t2) / (1000 * 60); }
+function toHours(minutes) { return (minutes / 60).toFixed(1); }
+
+// --- TAB STATE ---
+let currentTab = 'dashboard';
+
+function setTab(tabName) {
+    currentTab = tabName;
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-tab') === tabName) {
+            btn.classList.add('active');
+        }
+    });
+    renderContent();
+}
+
+function renderContent() {
+    const reportContent = document.getElementById('reportContent');
+    const selectedPlanId = document.getElementById('plan-selector').value;
+
+    if (!selectedPlanId) {
+        reportContent.innerHTML = '<div class="card"><p class="muted">Please select an action plan to view reports.</p></div>';
+        return;
+    }
+
+    // Filter data for the selected plan
+    const data = {
+        scans: state.scans.filter(s => s.planId === selectedPlanId),
+        bins: state.bins.filter(b => b.planId === selectedPlanId),
+        discrepancies: state.discrepancies.filter(d => d.planId === selectedPlanId),
+        status: state.freezes.filter(f => f.planId === selectedPlanId),
+        assignments: state.assignments.filter(a => a.planId === selectedPlanId)
+    };
+
+    switch(currentTab) {
+        case 'dashboard':
+            reportContent.innerHTML = renderDashboardOverview(data);
+            break;
+        case 'performance':
+            reportContent.innerHTML = renderPerformanceReport(data);
+            break;
+        case 'summary':
+            reportContent.innerHTML = renderSessionSummaryReport(data);
+            break;
+        case 'detail':
+            reportContent.innerHTML = renderBinShelfLevelReport(data);
+            break;
+    }
+
+    // Since progress bar rendering relies on DOM elements being present, we call it again for dashboard
+    if (currentTab === 'dashboard') {
+        const dashboardData = calculateDashboardOverview(data);
+        // We pass the filtered data object here
+        updateDashboardUI(dashboardData, data);
+    }
+
+    paintIcons(reportContent);
+}
+
+// --- STATE MANAGEMENT & MOCK DATA ---
+let state = {
+  plans: [], routes: [], bins: [], assignments: [], scans: [], discrepancies: [], freezes: []
+};
+
+function loadState() {
+    try {
+        state.plans = JSON.parse(localStorage.getItem('pc_plans') || '[]') || [];
+        state.routes = JSON.parse(localStorage.getItem('pc_routes') || '[]') || [];
+        state.bins = JSON.parse(localStorage.getItem('pc_bins') || '[]') || [];
+        state.assignments = JSON.parse(localStorage.getItem('pc_assignments') || '[]') || [];
+        state.scans = JSON.parse(localStorage.getItem('pc_scans') || '[]') || [];
+        state.discrepancies = JSON.parse(localStorage.getItem('pc_disc') || '[]') || [];
+        state.freezes = JSON.parse(localStorage.getItem('pc_freezes') || '[]') || []; // Bin status
+    } catch (e) {
+        console.error("Failed to load state from localStorage:", e);
+    }
+}
+
+function getBinStatus(pid, binId) {
+    return state.freezes.find(s => s.planId === pid && s.binId === binId);
+}
+
+// Mock Data Seeding (separate from mobile app seeding)
+function seedMockReports() {
+    // Only generate if the plan list is empty
+    if (state.plans.length > 0) return; 
+    
+    const pid = 'MOCK-RPT-001';
+    const now = Date.now();
+    
+    state.plans.push({id: pid, site: 'HQ-LAX', asof: '2025-10-01'});
+    state.bins.push(
+        {planId: pid, routeKey: 'R1', binId: 'A01-01', section: 'A01', expectedSkus: 2},
+        {planId: pid, routeKey: 'R1', binId: 'A01-02', section: 'A01', expectedSkus: 1},
+        {planId: pid, routeKey: 'R2', binId: 'B02-01', section: 'B02', expectedSkus: 3},
+        {planId: pid, routeKey: 'R2', binId: 'B02-02', section: 'B02', expectedSkus: 1},
+        {planId: pid, routeKey: 'R3', binId: 'C03-01', section: 'C03', expectedSkus: 1}
+    );
+    state.routes.push(
+        {planId: pid, routeKey: 'R1', section: 'A01', type: 'system', stops: ['A01-01', 'A01-02']},
+        {planId: pid, routeKey: 'R2', section: 'B02', type: 'manual', stops: ['B02-01', 'B02-02']},
+        {planId: pid, routeKey: 'R3', section: 'C03', type: 'system', stops: ['C03-01']}
+    );
+    state.assignments.push(
+        {planId: pid, routeKey: 'R1', user: 'Alice'},
+        {planId: pid, routeKey: 'R2', user: 'Bob'},
+        {planId: pid, routeKey: 'R3', user: 'Alice'}
+    );
+    // Scans (creating mock timestamps and expected/counted)
+    state.scans.push(
+        // Alice R1: A01-01 (Completed)
+        {planId: pid, binId: 'A01-01', sku: 'SKU-001', qty: 10, when: now - 1800000, expectedQty: 10, user: 'Alice', routeKey: 'R1'}, // 30 min ago
+        {planId: pid, binId: 'A01-01', sku: 'SKU-002', qty: 5, when: now - 1790000, expectedQty: 5, user: 'Alice', routeKey: 'R1'}, 
+        // Alice R1: A01-02 (Completed)
+        {planId: pid, binId: 'A01-02', sku: 'SKU-003', qty: 1, when: now - 1700000, expectedQty: 2, user: 'Alice', routeKey: 'R1'}, // Discrepancy (1/2)
+        // Bob R2: B02-01 (In Progress, 1/3 SKU counted)
+        {planId: pid, binId: 'B02-01', sku: 'SKU-004', qty: 20, when: now - 600000, expectedQty: 20, user: 'Bob', routeKey: 'R2'}, // 10 min ago
+        // Bob R2: B02-02 (Completed, Mismatch)
+        {planId: pid, binId: 'B02-02', sku: 'SKU-005', qty: 8, when: now - 300000, expectedQty: 5, user: 'Bob', routeKey: 'R2'}, // Discrepancy (2/2)
+        // Alice R3: C03-01 (Completed)
+        {planId: pid, binId: 'C03-01', sku: 'SKU-006', qty: 1, when: now - 120000, expectedQty: 1, user: 'Alice', routeKey: 'R3'} // 2 min ago
+    );
+
+    // Set Bin Statuses
+    state.freezes.push(
+        {planId: pid, binId: 'A01-01', status: 'Completed', when: now - 1790000},
+        {planId: pid, binId: 'A01-02', status: 'Completed', when: now - 1700000},
+        {planId: pid, binId: 'B02-01', status: 'In Progress', when: now - 600000},
+        {planId: pid, binId: 'B02-02', status: 'Completed', when: now - 300000},
+        {planId: pid, binId: 'C03-01', status: 'Completed', when: now - 120000}
+    );
+    // Discrepancy records corresponding to the scans: SKU-003 and SKU-005
+    state.discrepancies.push(
+        {planId: pid, id: 'D-001', binId: 'A01-02', sku: 'SKU-003', expected: 2, counted: 1, status: 'Open', when: now - 1700000},
+        {planId: pid, id: 'D-002', binId: 'B02-02', sku: 'SKU-005', expected: 5, counted: 8, status: 'Open', when: now - 300000}
+    );
+}
+
+
+// --- MAIN RENDERING LOGIC ---
+function render() {
+    loadState();
+    seedMockReports();
+    
+    const selector = document.getElementById('plan-selector');
+    const defaultPlanId = state.plans[0]?.id;
+    const selectedPlanId = selector.value || defaultPlanId;
+
+    // Populate Plan Selector
+    selector.innerHTML = state.plans.map(p => 
+        `<option value="${p.id}" ${p.id === selectedPlanId ? 'selected' : ''}>Plan: ${p.id} - ${p.site}</option>`
+    ).join('');
+
+    if (!selectedPlanId) return;
+
+    // Ensure initial content load based on the default tab
+    renderContent();
+    
+    // Auto-refresh logic (keep here for background data update)
+    // Auto-refresh reports to reflect changes from mobile/admin apps
+    setTimeout(() => {
+        if (document.getElementById('plan-selector').value === selectedPlanId) {
+            // Re-render only if the plan hasn't changed
+            // Using render() here might cause re-rendering the whole component unnecessarily. 
+            // We just call renderContent() to update the visible tab data.
+            renderContent();
+        }
+    }, 5000);
+}
+
+
+// --- PILLAR 1: DASHBOARD OVERVIEW RENDER ---
+function renderDashboardOverview(data) {
+    // Note: The UI calculation is now separated into a helper function
+    return `<div id="dashboardContent" class="grid">
+        <!-- Performance Report (KPIs) - Left Column -->
+        <div class="card">
+            <h3>Performance Report (KPIs)</h3>
+            <div class="kpis">
+                <div class="kpi">
+                    <div class="lbl">Avg Count Time per Bin</div>
+                    <div class="val" id="kpiAvgTime">0 min</div>
+                </div>
+                <div class="kpi">
+                    <div class="lbl">User Productivity (Bins/hour)</div>
+                    <div class="val" id="kpiProductivity">0.0</div>
+                </div>
+                <div class="kpi">
+                    <div class="lbl">Accuracy %</div>
+                    <div class="val" id="kpiAccuracy">0%</div>
+                </div>
+            </div>
+            <p class="muted">* Calculates metrics such as Average Counting Time per Bin, User Productivity, Accuracy %, and Discrepancy Rate.</p>
+        </div>
+
+        <!-- Dashboard Overview (Right Column) -->
+        <div class="card">
+            <h3>Overall Progress</h3>
+            
+            <div class="kpi">
+                <div class="lbl">Overall Count Progress</div>
+                <div class="val" id="kpiProgress">0%</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+                </div>
+            </div>
+
+            <div class="kpis" style="margin-top: 20px;">
+                <div class="kpi" style="min-width: unset; padding: 10px;">
+                    <div class="lbl">Completed Bins</div>
+                    <div class="val" id="kpiCompleted" style="font-size: 20px; color: var(--success);">0</div>
+                </div>
+                <div class="kpi" style="min-width: unset; padding: 10px;">
+                    <div class="lbl">Remaining Bins</div>
+                    <div class="val" id="kpiRemaining" style="font-size: 20px; color: var(--warning);">0</div>
+                </div>
+                <div class="kpi" style="min-width: unset; padding: 10px;">
+                    <div class="lbl">Discrepancy Rate</div>
+                    <div class="val" id="kpiDiscRate" style="font-size: 20px; color: var(--danger);">0%</div>
+                </div>
+            </div>
+
+            <p class="muted" style="margin-top: 20px;">
+                * Provides tracking of the Physical Count, showing progress by Site/Storage Group/Section.
+            </p>
+        </div>
+    </div>`;
+}
+
+// --- CALCULATION HELPERS (Moved logic out of render functions) ---
+function calculateDashboardOverview(data) {
+    const totalBins = data.bins.length;
+    const completedBins = data.status.filter(s => s.status === 'Completed').length;
+    const pendingBins = totalBins - completedBins;
+    const overallProgress = totalBins ? Math.round((completedBins / totalBins) * 100) : 0;
+    const openDiscs = data.discrepancies.filter(d => d.status.includes('Open')).length;
+    const discRate = data.scans.length > 0 ? (openDiscs / data.scans.length * 100).toFixed(1) : 0;
+
+    return { totalBins, completedBins, pendingBins, overallProgress, discRate, openDiscs };
+}
+
+function calculatePerformanceMetrics(data) {
+    // FIX: Check if data.scans is defined before accessing its length
+    const totalScans = data.scans ? data.scans.length : 0; 
+    let avgTimePerBin = 0;
+    let binsPerHour = 0;
+    let accuracy = 100.0;
+
+    if (totalScans > 0) {
+        // 1. Average Counting Time per Bin
+        const binTimes = {};
+        data.scans.forEach(s => {
+            if (!binTimes[s.binId]) {
+                binTimes[s.binId] = { start: s.when, end: s.when, count: 0 };
+            }
+            binTimes[s.binId].end = Math.max(binTimes[s.binId].end, s.when);
+            binTimes[s.binId].start = Math.min(binTimes[s.binId].start, s.when);
+            binTimes[s.binId].count++;
+        });
+
+        const totalMinutes = Object.values(binTimes).reduce((sum, t) => sum + getMinutesBetween(t.start, t.end), 0);
+        const uniqueBinsCounted = Object.keys(binTimes).length;
+        
+        avgTimePerBin = uniqueBinsCounted > 0 ? (totalMinutes / uniqueBinsCounted).toFixed(1) : 0;
+        
+        // 2. User Productivity (Bins/hour) - Use total time counted, default to 8 hours for calculation base if minimal
+        const totalHours = totalMinutes > 0 ? toHours(totalMinutes) : 8; 
+        binsPerHour = uniqueBinsCounted / totalHours;
+
+        // 3. Accuracy %
+        const accurateScans = data.scans.filter(s => s.qty === s.expectedQty).length;
+        accuracy = (accurateScans / totalScans * 100).toFixed(1);
+    }
+
+    return { avgTimePerBin, binsPerHour: binsPerHour.toFixed(1), accuracy };
+}
+
+// --- UI UPDATE HELPERS ---
+// FIX: updateDashboardUI now accepts the filtered data object `data`
+function updateDashboardUI(metrics, data) {
+    document.getElementById('kpiProgress').textContent = `${metrics.overallProgress}%`;
+    document.getElementById('kpiCompleted').textContent = metrics.completedBins;
+    document.getElementById('kpiRemaining').textContent = metrics.pendingBins;
+    document.getElementById('kpiDiscRate').textContent = `${metrics.discRate}%`;
+    
+    const fillElement = document.getElementById('progressFill');
+    fillElement.style.width = `${metrics.overallProgress}%`;
+    fillElement.textContent = metrics.overallProgress > 5 ? `${metrics.overallProgress}%` : '';
+
+    // FIX: Pass the correct filtered data object to calculatePerformanceMetrics
+    const perfMetrics = calculatePerformanceMetrics(data);
+    document.getElementById('kpiAvgTime').textContent = `${perfMetrics.avgTimePerBin} min`;
+    document.getElementById('kpiProductivity').textContent = perfMetrics.binsPerHour;
+    document.getElementById('kpiAccuracy').textContent = `${perfMetrics.accuracy}%`;
+}
+
+
+// --- PILLAR 2: PERFORMANCE REPORT (TAB) ---
+function renderPerformanceReport(data) {
+    const metrics = calculatePerformanceMetrics(data);
+    const discMetrics = calculateDashboardOverview(data);
+
+    return `<div class="card">
+        <h3>Performance Report (KPI)</h3>
+        <div class="kpis">
+            <div class="kpi">
+                <div class="lbl">Avg Count Time per Bin</div>
+                <div class="val">${metrics.avgTimePerBin} min</div>
+            </div>
+            <div class="kpi">
+                <div class="lbl">User Productivity (Bins/hour)</div>
+                <div class="val">${metrics.binsPerHour}</div>
+            </div>
+            <div class="kpi">
+                <div class="lbl">Accuracy %</div>
+                <div class="val">${metrics.accuracy}%</div>
+            </div>
+            <div class="kpi">
+                <div class="lbl">Discrepancy Rate %</div>
+                <div class="val" style="color:var(--danger);">${discMetrics.discRate}%</div>
+            </div>
+        </div>
+        <p class="muted">* Calculates metrics such as Average Counting Time per Bin, User Productivity, Accuracy %, and Discrepancy Rate.</p>
+    </div>`;
+}
+
+
+// --- PILLAR 3: SESSION SUMMARY REPORT (TAB) ---
+function renderSessionSummaryReport(data) {
+    const summary = {}; 
+
+    data.bins.forEach(b => {
+        const section = b.section;
+        const statusObj = data.status.find(s => s.binId === b.binId);
+        let status = statusObj?.status || 'Pending';
+        let problem = data.discrepancies.some(d => d.binId === b.binId && d.status.includes('Open'));
+
+        if (!summary[section]) {
+            summary[section] = { total: 0, completed: 0, pending: 0, problem: 0 };
+        }
+        summary[section].total++;
+        if (status === 'Completed') {
+            summary[section].completed++;
+        } else if (problem) {
+            summary[section].problem++;
+        } else {
+            summary[section].pending++;
+        }
+    });
+
+    const rows = Object.entries(summary).map(([section, counts]) => {
+        const progress = counts.total ? Math.round(counts.completed / counts.total * 100) : 0;
+        return `<tr>
+            <td>${esc(section)}</td>
+            <td>${counts.total}</td>
+            <td>${counts.completed}</td>
+            <td>${counts.pending}</td>
+            <td>${counts.problem}</td>
+            <td>${progress}%</td>
+        </tr>`;
+    }).join('');
+
+    const tableHtml = `<table>
+        <thead>
+            <tr>
+                <th>Section/Area</th>
+                <th>Total Bins</th>
+                <th>Completed</th>
+                <th>Pending</th>
+                <th>Problem (Discrepancy)</th>
+                <th>Progress (%)</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+
+    return `<div class="card">
+        <h3>Session Summary Report (Grouped by Status)</h3>
+        <div id="sessionSummaryTable">${rows ? tableHtml : '<p class="muted">No bins or counting activity recorded.</p>'}</div>
+        <p class="muted" style="margin-top: 15px;">
+            * Displays totals for Bin/Shelf/Article/Category, categorized by status and overall progress.
+        </p>
+    </div>`;
+}
+
+// --- PILLAR 4: BIN/SHELF LEVEL REPORT (TAB) ---
+function renderBinShelfLevelReport(data) {
+    const detailData = data.bins.map(b => {
+        const scans = data.scans.filter(s => s.binId === b.binId);
+        const latestScan = scans.sort((a, b) => b.when - a.when)[0];
+        const statusObj = data.status.find(s => s.binId === b.binId);
+        const status = statusObj?.status || 'Pending';
+        const user = data.assignments.find(a => a.routeKey === b.routeKey)?.user || 'N/A';
+        const problem = data.discrepancies.some(d => d.binId === b.binId && d.status.includes('Open'));
+
+        return {
+            binId: b.binId,
+            itemCount: new Set(scans.map(s => s.sku)).size,
+            totalQty: scans.reduce((sum, s) => sum + s.qty, 0),
+            validation: problem ? 'Problem' : (status === 'Completed' ? 'Passed' : 'Pending'),
+            user: user,
+            timestamp: latestScan ? fmtWhen(latestScan.when) : 'N/A'
+        };
+    });
+
+    const rows = detailData.map(d => {
+        const pillClass = d.validation === 'Passed' ? 'completed' : (d.validation === 'Problem' ? 'problem' : 'pending');
+        return `<tr>
+            <td>${esc(d.binId)}</td>
+            <td>${d.itemCount}</td>
+            <td>${d.totalQty}</td>
+            <td><span class="pill ${pillClass.toLowerCase()}">${d.validation}</span></td>
+            <td>${esc(d.user)}</td>
+            <td>${d.timestamp}</td>
+        </tr>`;
+    }).join('');
+
+    const tableHtml = `<table>
+        <thead>
+            <tr>
+                <th>Bin Code</th>
+                <th>Distinct Items</th>
+                <th>Total Qty</th>
+                <th>Validation Result</th>
+                <th>User</th>
+                <th>Last Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+
+    return `<div class="card">
+        <h3>Bin/Shelf Level Report (Detail)</h3>
+        <div id="binShelfDetail">${rows ? tableHtml : '<p class="muted">No bin details available. Check Plan Setup.</p>'}</div>
+        <p class="muted" style="margin-top: 15px;">
+            * Includes detailed information such as Bin Code, Item Code, Qty, Validation Result, User, Timestamps, and the Attempt Details Log.
+        </p>
+    </div>`;
+}
+
+
+// --- BOOTSTRAP ---
+window.onload = function() {
+    // Check if localStorage has mobile app data. If not, seed the mock data.
+    if (!localStorage.getItem('pc_plans')) {
+        seedMockReports();
+    }
+    render();
+    paintIcons(document.querySelector('header'));
+    
+    // Auto-refresh logic initialization
+    // We set the initial interval here to ensure continuous updates.
+    setInterval(renderContent, 5000); // Only refresh content, not the whole setup
+};
+</script>
+</body>
+</html>
