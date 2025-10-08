@@ -222,9 +222,33 @@
   </div>
 </div>
 
+<!-- Modal for Re-entering Quantity -->
+<div class="modal" id="modalReEnter">
+  <div class="dialog" style="max-width:350px;">
+    <div class="sheet" style="padding:20px;border-radius:18px;">
+      <button class="close" onclick="closeModalReEnter()">✕</button>
+      <h3 style="margin-top:0;">Re-enter Count / Review</h3>
+      <p id="reEnterMessage" class="muted" style="font-size:var(--fs-sm);"></p>
+      
+      <div class="card" style="margin-bottom: 10px;">
+          <label>New Counted Qty</label>
+          <input id="reEnterQty" type="number" min="0" value="0"/>
+      </div>
+      
+      <div class="row" style="justify-content:space-between; margin-top: 15px;">
+        <button class="btn bad" onclick="submitReview()"><span class="ico-inline" data-ic="alert"></span> Submit for Review</button>
+        <button class="btn primary" onclick="updateScanQty()"><span class="ico-inline" data-ic="tick"></span> Update Qty</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== STATE FIRST =====
 let stateReady = false;
+// Global variable to hold the reference of the scan entry currently being reviewed/edited
+let currentScanEntry = null;
+
 // State structure to hold all application data, primarily stored in localStorage for persistence.
 const state = {
   plans: [], routes: [], bins: [], assignments: [], scans: [], discrepancies: [], freezes: [], cfgByPlan: {}, currentPlanId: null
@@ -941,18 +965,125 @@ function populateScanBins(){
 function listScans(arr){
   if(!arr.length) return empty('No scans yet.');
   return `<div class="grid">
-    ${arr.map(r=>`<div class="card" style="padding:8px">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-        <div><b>${esc(r.sku)}</b><div class="muted" style="font-size:var(--fs-sm)">${esc(r.binId)}</div></div>
-        <div style="text-align:right">
-          <span class="pill">Qty ${r.qty}</span>
-          <div class="muted" style="font-size:var(--fs-xs)">${fmtWhen(r.when)}</div>
-        </div>
-      </div>
-      <div class="muted" style="margin-top:2px;font-size:var(--fs-sm)">${r.blind?'Blind':''} ${esc(r.note||'')}</div>
-    </div>`).join('')}
+    ${arr.map((r, i) => {
+        // Mock expected quantity (assuming this came from SAP On-Hand Stock)
+        const expected = r.expectedQty ?? Math.floor(Math.random() * 4) + 1;
+        const mismatch = r.qty !== expected;
+        const scanIndex = state.scans.findIndex(s => s.when === r.when && s.sku === r.sku); // Find index for reference
+
+        let mismatchButton = '';
+        if (mismatch) {
+            mismatchButton = `<button class="btn bad" style="padding: 4px 8px; font-size: var(--fs-xs); margin-left: 8px;" 
+                              onclick="openReEnterModal(${scanIndex})">
+                                Not Match
+                              </button>`;
+        }
+        
+        // Update the scan object to store the expected Qty for persistence
+        if (r.expectedQty === undefined) {
+             r.expectedQty = expected;
+             // We do NOT call persist() here to avoid excessive writes, 
+             // it will be saved with the next state change or when the user logs out.
+        }
+
+
+        return `<div class="card" style="padding:8px">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+            <div>
+                <b>${esc(r.sku)}</b> ${mismatchButton}
+                <div class="muted" style="font-size:var(--fs-sm)">${esc(r.binId)}</div>
+            </div>
+            <div style="text-align:right">
+              <span class="pill">
+                Counted Qty ${r.qty}
+                <span style="${mismatch ? 'color: var(--bad); font-weight: 700;' : ''}"> / Exp ${expected}</span>
+              </span>
+              <div class="muted" style="font-size:var(--fs-xs)">${fmtWhen(r.when)}</div>
+            </div>
+          </div>
+          <div class="muted" style="margin-top:2px;font-size:var(--fs-sm)">${r.blind?'Blind':''} ${esc(r.note||'')}</div>
+        </div>`;
+    }).join('')}
   </div>`;
 }
+
+function openReEnterModal(scanIndex) {
+    currentScanEntry = state.scans[scanIndex];
+    if (!currentScanEntry) {
+        showMessage('Error', 'Scan entry not found.');
+        return;
+    }
+
+    const expected = currentScanEntry.expectedQty || 0;
+    
+    document.getElementById('reEnterMessage').innerHTML = `
+        SKU: <b>${esc(currentScanEntry.sku)}</b> in Bin: <b>${esc(currentScanEntry.binId)}</b><br>
+        On-Hand Stock (SAP Mock): <b>${expected}</b><br>
+        Current Counted Qty: <b>${currentScanEntry.qty}</b>
+    `;
+    document.getElementById('reEnterQty').value = currentScanEntry.qty; // Pre-fill with current count
+
+    document.getElementById('modalReEnter').style.display = 'flex';
+}
+
+function closeModalReEnter() {
+    currentScanEntry = null;
+    document.getElementById('modalReEnter').style.display = 'none';
+}
+
+function updateScanQty() {
+    if (!currentScanEntry) return;
+
+    const newQty = parseInt(document.getElementById('reEnterQty').value, 10) || 0;
+    
+    if (newQty < 0) {
+        showMessage('Error', 'Quantity cannot be negative.');
+        return;
+    }
+
+    // 1. Update the quantity of the original scan record
+    currentScanEntry.qty = newQty;
+    
+    // 2. Clear expectedQty field if user re-enters same QTY as expected to clear mismatch visually
+    if (newQty === currentScanEntry.expectedQty) {
+        // Optionally clear discrepancy flag if it exists, and re-render.
+        // For simplicity here, we just update the original scan object.
+    }
+    
+    persist();
+    closeModalReEnter();
+    renderExecute();
+    showMessage('Success', `Quantity for SKU ${currentScanEntry.sku} updated to ${newQty}.`);
+}
+
+function submitReview() {
+    if (!currentScanEntry) return;
+    
+    const expected = currentScanEntry.expectedQty || 0;
+    const counted = currentScanEntry.qty;
+    
+    // 1. Create a Discrepancy record for SAP review
+    const id = 'D-' + Math.floor(Math.random()*9000+1000);
+    state.discrepancies.push({
+        planId: currentScanEntry.planId, 
+        id, 
+        type:'QtyMismatch - Review', 
+        binId: currentScanEntry.binId, 
+        sku: currentScanEntry.sku, 
+        expected: expected, 
+        counted: counted, 
+        status:'Open'
+    });
+    
+    // 2. Mark the original scan item as reviewed to hide the red button
+    currentScanEntry.reviewed = true;
+    
+    persist();
+    closeModalReEnter();
+    renderExecute();
+    showMessage('Review Submitted', `Discrepancy ID ${id} submitted for SAP backend review.`);
+}
+
 function submitScan(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
@@ -975,8 +1106,19 @@ function submitScan(){
   const note = document.getElementById('sc-note').value.trim();
   if(!sku || qty<=0){ showMessage('Error', 'SKU and Qty>0 required'); return; }
   
-  // 1. Log the scan entry
-  state.scans.push({planId:pid, routeKey:rk, binId, when:Date.now(), sku, qty, blind, note});
+  // 1. Log the scan entry, adding a mock expectedQty (SAP On-Hand Stock)
+  const mockExpectedQty = Math.floor(Math.random() * 4) + 1; 
+  state.scans.push({
+    planId: pid, 
+    routeKey: rk, 
+    binId, 
+    when: Date.now(), 
+    sku, 
+    qty, 
+    blind, 
+    note,
+    expectedQty: mockExpectedQty // Added mock SAP stock
+  });
 
   // 2. Update Freeze Status (or Counting Status)
   
@@ -1233,8 +1375,11 @@ setInterval(()=>{ if((location.hash||'#reports')==='#reports'){ if(stateReady) r
 // ===== EXPORTS / CLEAR =====
 function exportCSV(){
   const pid = state.currentPlanId;
-  const rows = [['planId','routeKey','binId','when','sku','qty','blind','note']]
-    .concat(state.scans.filter(s=>s.planId===pid).map(s=>[s.planId,s.routeKey,s.binId,new Date(s.when).toISOString(), s.sku, s.qty, s.blind, (s.note||'')]));
+  const rows = [['planId','routeKey','binId','when','sku','qty','blind','note', 'expectedQty', 'reviewed']]
+    .concat(state.scans.filter(s=>s.planId===pid).map(s=>[
+        s.planId, s.routeKey, s.binId, new Date(s.when).toISOString(), s.sku, s.qty, 
+        s.blind, (s.note||''), s.expectedQty, s.reviewed || false
+    ]));
   const csv = rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
