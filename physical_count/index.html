@@ -107,6 +107,11 @@
     .kpi .val {
         font-size: var(--fs-xl); 
     }
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
   }
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);
     padding:4px calc(10px + var(--inset)); display:flex;gap:4px;justify-content:space-around}
@@ -279,7 +284,11 @@ const ICONS = {
   boxes:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 17l9 4 9-4"/><path d="M3 12l9 4 9-4"/></svg>`,
   map:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`,
-  arrow:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`
+  arrow:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`,
+  template:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M10 8h4M8 12h8M11 16h2"/></svg>`,
+  upload:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`
 };
 // Function to inject SVG icons into elements with data-ic attribute.
 function paintIcons(scope=document){ scope.querySelectorAll('[data-ic]').forEach(el=>{ el.innerHTML = ICONS[el.getAttribute('data-ic')]||''; }); }
@@ -541,8 +550,10 @@ function renderPlan(){
           <div style="flex:1;min-width:150px"><label>Brand</label><input id="pl-brand" value="${p?esc((p.scope||{}).brand||''):''}"/></div>
           <div style="flex:1;min-width:150px"><label>Vendor</label><input id="pl-vendor" value="${p?esc((p.scope||{}).vendor||''):''}"/></div>
         </div>
-        <div class="row">
+        <div class="action-buttons row" style="margin-top: 10px; margin-bottom: 10px;">
           <button class="btn primary" onclick="savePlan()"><span class="ico-inline" data-ic="tick"></span> Save / Set Active</button>
+          <button class="btn primary" onclick="showMessage('Template Action', 'Action to save/manage template would go here.')"><span class="ico-inline" data-ic="template"></span> Template</button>
+          <button class="btn primary" onclick="showMessage('Upload Action', 'Action to upload CSV/Excel plan would go here.')"><span class="ico-inline" data-ic="upload"></span> Upload (CSV/Excel)</button>
           <button class="btn" onclick="seedDemo()"><span class="ico-inline" data-ic="arrow"></span> Insert Mock Data</button>
         </div>
       </div>
@@ -809,30 +820,70 @@ function editAssign(routeKey, oldUser){
   });
 }
 
+// Helper function to get all unique assigned users for the current plan
+function getAssignedUsersOfPlan() {
+    if (!state.currentPlanId) return [];
+    const pid = state.currentPlanId;
+    return [...new Set(state.assignments.filter(a => a.planId === pid).map(a => a.user))].sort();
+}
+
+// Helper function to filter bins assigned to a specific user
+function getBinsForUser(pid, userId) {
+    if (!pid || !userId) return [];
+    
+    // Find all routes assigned to this user
+    const userRoutes = state.assignments
+        .filter(a => a.planId === pid && a.user === userId)
+        .map(a => a.routeKey);
+
+    // Filter bins that belong to those routes
+    return state.bins.filter(b => b.planId === pid && userRoutes.includes(b.routeKey));
+}
+
+
 // ===== EXECUTE VIEW FUNCTIONS (Renamed to Count) =====
 function renderExecute(){
   if(!ensurePlan()) return;
   const pid = state.currentPlanId;
-  const allBins = allBinsOfPlan(pid);
+  const assignedUsers = getAssignedUsersOfPlan();
+  
+  // Get the selected user ID (default to the first assigned user, or empty)
+  let selectedUserId = document.getElementById('exe-user')?.value || assignedUsers[0] || '';
+  if (!assignedUsers.includes(selectedUserId)) {
+      selectedUserId = assignedUsers[0] || '';
+  }
+
+  const userBins = getBinsForUser(pid, selectedUserId);
+
   view.innerHTML = `
     <div class="grid">
       <div class="card">
         <h3><span class="ico-inline" data-ic="scan"></span> 3) Count (Track / Scan)</h3>
-        <!-- FIX 3: Add margin-bottom to the execute-row containing the Scan & Count button -->
+        
         <div class="row execute-row" style="margin-bottom: 15px;">
           <div style="flex:1;">
-            <label>Bin</label>
-            <select id="exe-bin">${
-              allBins.length? allBins.map(b=>{
-                const status = getBinStatus(pid, b.binId)?.status || 'Pending';
-                const frozen = (status === 'In Progress' || status === 'Completed');
-                const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
-                const assignedClass = (routeUser === currentUser) ? 'primary' : (routeUser === 'Unassigned' ? '' : 'warn');
-                return `<option ${frozen?'disabled':''} data-user="${esc(routeUser)}" class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)}) (${status})</option>`;
-              }).join('') : '<option disabled>No bins</option>'
-            }</select>
+            <label>User</label>
+            <select id="exe-user" onchange="renderExecute()">
+                <option value="">— Select User —</option>
+                ${assignedUsers.map(u => `<option value="${esc(u)}" ${u === selectedUserId ? 'selected' : ''}>${esc(u)}</option>`).join('')}
+            </select>
           </div>
-          <div style="align-self:end;">
+          <div style="flex:1;">
+            <label>Bin (Assigned to ${selectedUserId || 'User'})</label>
+            <select id="exe-bin">
+                ${userBins.length ? userBins.map(b => {
+                    const status = getBinStatus(pid, b.binId)?.status || 'Pending';
+                    const frozen = (status === 'In Progress' || status === 'Completed');
+                    const route = state.routes.find(r => r.planId === pid && r.stops.includes(b.binId));
+                    const routeDisplay = route ? `${route.section} / ${route.type}` : '—';
+                    
+                    return `<option ${frozen ? 'disabled' : ''} value="${b.routeKey}::${b.binId}">
+                                ${b.binId} (${routeDisplay}) (${status})
+                            </option>`;
+                }).join('') : '<option disabled>No assigned bins or select user</option>'}
+            </select>
+          </div>
+          <div style="align-self:end; width: 100%;">
             <button class="btn ok" onclick="openScanSheet()"><span class="ico-inline" data-ic="scan"></span> Scan & Count</button>
           </div>
         </div>
@@ -841,6 +892,7 @@ function renderExecute(){
         ${listScans(state.scans.filter(s=>s.planId===pid).slice(-12).reverse())}
       </div>
     </div>`;
+  
   const sel = document.getElementById('exe-bin');
   function updateBinStat(){
     const v = sel && sel.value || '';
@@ -863,13 +915,27 @@ function renderExecute(){
 function openScanSheet(){ populateScanBins(); toggleSheet('sheetScan',true); }
 function populateScanBins(){
   const pid = state.currentPlanId;
+  const userSel = document.getElementById('exe-user');
+  const selectedUserId = userSel ? userSel.value : '';
+
   const sel = document.getElementById('sc-bin'); if(!sel) return;
-  sel.innerHTML = allBinsOfPlan(pid).map(b=>{
+  
+  if (!selectedUserId) {
+    sel.innerHTML = '<option disabled>Please select a user</option>';
+    return;
+  }
+
+  const userBins = getBinsForUser(pid, selectedUserId);
+
+  sel.innerHTML = userBins.map(b=>{
     const status = getBinStatus(pid, b.binId)?.status || 'Pending';
-    const frozen = (status === 'In Progress' || status === 'Completed');
-    const routeUser = state.assignments.find(a => a.planId === pid && a.routeKey === b.routeKey)?.user || 'Unassigned';
-    const assignedClass = (routeUser === currentUser) ? 'text-blue-600' : (routeUser === 'Unassigned' ? 'text-gray-600' : 'text-yellow-600');
-    return `<option ${frozen?'disabled':''} class="${assignedClass}" value="${b.routeKey}::${b.binId}">${b.section} • ${b.binId} (${esc(routeUser)}) (${status})</option>`;
+    const disabled = (status === 'Completed'); // Only completed bins are disabled for counting
+    const route = state.routes.find(r => r.planId === pid && r.stops.includes(b.binId));
+    const routeDisplay = route ? `${route.section} / ${route.type}` : '—';
+    
+    return `<option ${disabled?'disabled':''} value="${b.routeKey}::${b.binId}">
+                ${b.binId} (${routeDisplay}) (${status})
+            </option>`;
   }).join('');
 }
 function listScans(arr){
